@@ -218,8 +218,9 @@ function addResetLog(telegramId, username, key) {
 // Enhanced topup functions for payment proof system
 function addTopupRequest(login, telegramId, phone, method, proof) {
   const topups = getTopups();
+  const maxId = topups.length > 0 ? Math.max(...topups.map(t => t.id || 0)) : 0;
   const newTopup = {
-    id: topups.length + 1,
+    id: maxId + 1,
     login,
     telegramId,
     phone: phone || null,
@@ -356,8 +357,9 @@ function saveBroadcasts(broadcasts) {
 
 function addBroadcast(message, totalSent) {
   const broadcasts = getBroadcasts();
+  const maxId = broadcasts.length > 0 ? Math.max(...broadcasts.map(b => b.id || 0)) : 0;
   const newBroadcast = {
-    id: broadcasts.length + 1,
+    id: maxId + 1,
     message,
     totalSent,
     date: new Date().toISOString()

@@ -1,8 +1,12 @@
 const { Markup } = require('telegraf');
 const auth = require('../utils/auth');
 const db = require('../utils/db');
+const config = require('../../config.json');
 const { formatBalance } = require('../utils/format');
 const { mainMenuInline } = require('../keyboards/mainMenu');
+
+// Support WhatsApp URL from config
+const SUPPORT_WHATSAPP = config.supportWhatsApp || 'https://wa.me/447832618273';
 
 // Payment methods configuration
 const PAYMENT_METHODS = {
@@ -40,6 +44,22 @@ const PAYMENT_METHODS = {
   }
 };
 
+// Helper function to generate payment method buttons
+function getPaymentButtons() {
+  return [
+    [Markup.button.callback('🇺🇸 ZELLE (USA)', 'topup_method_ZELLE')],
+    [Markup.button.callback('🌍 PAYPAL GLOBAL', 'topup_method_PAYPAL')],
+    [Markup.button.callback('🇲🇽 MÉXICO – Transferencias', 'topup_method_MEXICO_TRANSFER')],
+    [Markup.button.callback('🇲🇽 MÉXICO – OXXO', 'topup_method_MEXICO_OXXO')],
+    [Markup.button.callback('🌍 REVOLUT', 'topup_method_REVOLUT')],
+    [Markup.button.callback('🇪🇨 ECUADOR – Pichincha', 'topup_method_ECUADOR')],
+    [Markup.button.callback('🇦🇷 ARGENTINA – Uala', 'topup_method_ARGENTINA')],
+    [Markup.button.callback('🌍 BINANCE', 'topup_method_BINANCE')],
+    [Markup.button.url('🟦 OTHER METHODS - Contact Admin', SUPPORT_WHATSAPP)],
+    [Markup.button.callback('⬅️ Back', 'back_main')]
+  ];
+}
+
 function setupTopupHandler(bot) {
   // Add Balance action
   bot.action('add_balance', (ctx) => {
@@ -47,18 +67,7 @@ function setupTopupHandler(bot) {
       return ctx.answerCbQuery('❌ You are not logged in. Use /login');
     }
     
-    const buttons = [
-      [Markup.button.callback('🇺🇸 ZELLE (USA)', 'topup_method_ZELLE')],
-      [Markup.button.callback('🌍 PAYPAL GLOBAL', 'topup_method_PAYPAL')],
-      [Markup.button.callback('🇲🇽 MÉXICO – Transferencias', 'topup_method_MEXICO_TRANSFER')],
-      [Markup.button.callback('🇲🇽 MÉXICO – OXXO', 'topup_method_MEXICO_OXXO')],
-      [Markup.button.callback('🌍 REVOLUT', 'topup_method_REVOLUT')],
-      [Markup.button.callback('🇪🇨 ECUADOR – Pichincha', 'topup_method_ECUADOR')],
-      [Markup.button.callback('🇦🇷 ARGENTINA – Uala', 'topup_method_ARGENTINA')],
-      [Markup.button.callback('🌍 BINANCE', 'topup_method_BINANCE')],
-      [Markup.button.url('🟦 OTHER METHODS - Contact Admin', 'https://wa.me/447832618273')],
-      [Markup.button.callback('⬅️ Back', 'back_main')]
-    ];
+    const buttons = getPaymentButtons();
     
     return ctx.editMessageText(
       `💰 *ADD BALANCE*\n\n` +
@@ -78,18 +87,7 @@ function setupTopupHandler(bot) {
       return ctx.reply('❌ You are not logged in. Use /login');
     }
     
-    const buttons = [
-      [Markup.button.callback('🇺🇸 ZELLE (USA)', 'topup_method_ZELLE')],
-      [Markup.button.callback('🌍 PAYPAL GLOBAL', 'topup_method_PAYPAL')],
-      [Markup.button.callback('🇲🇽 MÉXICO – Transferencias', 'topup_method_MEXICO_TRANSFER')],
-      [Markup.button.callback('🇲🇽 MÉXICO – OXXO', 'topup_method_MEXICO_OXXO')],
-      [Markup.button.callback('🌍 REVOLUT', 'topup_method_REVOLUT')],
-      [Markup.button.callback('🇪🇨 ECUADOR – Pichincha', 'topup_method_ECUADOR')],
-      [Markup.button.callback('🇦🇷 ARGENTINA – Uala', 'topup_method_ARGENTINA')],
-      [Markup.button.callback('🌍 BINANCE', 'topup_method_BINANCE')],
-      [Markup.button.url('🟦 OTHER METHODS - Contact Admin', 'https://wa.me/447832618273')],
-      [Markup.button.callback('⬅️ Back', 'back_main')]
-    ];
+    const buttons = getPaymentButtons();
     
     return ctx.reply(
       `💰 *ADD BALANCE*\n\n` +
@@ -116,8 +114,9 @@ function setupTopupHandler(bot) {
       return ctx.answerCbQuery('❌ Invalid payment method');
     }
     
-    // Store selected method in session
-    auth.setLoginSession(ctx.from.id, { topupMethod: methodKey, step: 'awaiting_proof' });
+    // Store selected method in session (preserve existing data)
+    const existingSession = auth.getLoginSession(ctx.from.id);
+    auth.setLoginSession(ctx.from.id, { ...existingSession, topupMethod: methodKey, step: 'awaiting_proof' });
     
     return ctx.editMessageText(
       `💰 *${method.title}*\n\n` +

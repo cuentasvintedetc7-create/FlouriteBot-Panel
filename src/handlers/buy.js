@@ -8,9 +8,9 @@ const { mainMenuInline } = require('../keyboards/mainMenu');
 const { formatBalance, formatDuration } = require('../utils/format');
 const { generateKey } = require('../utils/generateKey');
 
-// GBOX special pricing
-const GBOX_PRICE = 6;
-const GBOX_DURATION = '1year';
+// GBOX special pricing from config
+const GBOX_PRICE = config.gboxPrice || 6;
+const GBOX_DURATION = config.gboxDuration || '1year';
 
 function setupBuyHandler(bot) {
   // Buy command

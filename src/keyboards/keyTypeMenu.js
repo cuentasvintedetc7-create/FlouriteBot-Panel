@@ -1,7 +1,7 @@
 const { Markup } = require('telegraf');
 const config = require('../../config.json');
 
-function keyTypeMenu(product, duration) {
+function keyTypeMenu(product, duration, customPrice = null) {
   const buttons = config.keyFormats.map(keyType => 
     [Markup.button.callback(keyType, `confirm_${product}_${duration}_${keyType}`)]
   );

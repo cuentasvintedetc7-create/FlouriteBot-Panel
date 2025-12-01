@@ -2,11 +2,15 @@ const auth = require('../utils/auth');
 const db = require('../utils/db');
 const config = require('../../config.json');
 const { buyMenu } = require('../keyboards/buyMenu');
-const { productMenu } = require('../keyboards/productMenu');
+const { productMenu, gboxProductMenu } = require('../keyboards/productMenu');
 const { keyTypeMenu } = require('../keyboards/keyTypeMenu');
 const { mainMenuInline } = require('../keyboards/mainMenu');
 const { formatBalance, formatDuration } = require('../utils/format');
 const { generateKey } = require('../utils/generateKey');
+
+// GBOX special pricing
+const GBOX_PRICE = 6;
+const GBOX_DURATION = '1year';
 
 function setupBuyHandler(bot) {
   // Buy command
@@ -33,8 +37,8 @@ function setupBuyHandler(bot) {
     });
   });
   
-  // Handle "🛒 Buy" button from keyboard
-  bot.hears('🛒 Buy', (ctx) => {
+  // Handle "🛒 Buy" button from keyboard (both old and new)
+  bot.hears(['🛒 Buy', '🛒 Buy Product'], (ctx) => {
     if (!auth.isLoggedIn(ctx.from.id)) {
       return ctx.reply('❌ You are not logged in. Use /login');
     }
@@ -53,13 +57,30 @@ function setupBuyHandler(bot) {
     
     const product = ctx.match[1];
     
+    // Special handling for Gbox - only 1 year at $6
+    if (product === 'Gbox') {
+      return ctx.editMessageText(
+        `📦 *${product}*\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━━\n` +
+        `📜 *GBOX CERTIFICADO*\n` +
+        `⏱️ Duration: *1 Year*\n` +
+        `💰 Price: *$${GBOX_PRICE}*\n` +
+        `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `Select key format:`,
+        {
+          parse_mode: 'Markdown',
+          ...keyTypeMenu(product, GBOX_DURATION, GBOX_PRICE)
+        }
+      );
+    }
+    
     return ctx.editMessageText(`📦 *${product}*\n\nSelect duration:`, {
       parse_mode: 'Markdown',
       ...productMenu(product)
     });
   });
   
-  // Duration selection
+  // Duration selection (for non-Gbox products)
   bot.action(/^duration_(.+)_(\d+days?)$/, (ctx) => {
     if (!auth.isLoggedIn(ctx.from.id)) {
       return ctx.answerCbQuery('❌ You are not logged in. Use /login');
@@ -76,13 +97,13 @@ function setupBuyHandler(bot) {
       `Select key format:`, 
       {
         parse_mode: 'Markdown',
-        ...keyTypeMenu(product, duration)
+        ...keyTypeMenu(product, duration, price)
       }
     );
   });
   
-  // Confirm purchase
-  bot.action(/^confirm_(.+)_(\d+days?)_(.+)$/, async (ctx) => {
+  // Confirm purchase with optional promo code
+  bot.action(/^confirm_(.+)_(.+)_(.+)$/, async (ctx) => {
     const telegramId = ctx.from.id;
     
     if (!auth.isLoggedIn(telegramId)) {
@@ -92,13 +113,142 @@ function setupBuyHandler(bot) {
     const product = ctx.match[1];
     const duration = ctx.match[2];
     const keyType = ctx.match[3];
-    const price = config.prices[duration];
+    
+    // Get price based on product
+    let price;
+    if (product === 'Gbox') {
+      price = GBOX_PRICE;
+    } else {
+      price = config.prices[duration];
+    }
+    
+    const user = auth.getLoggedInUser(telegramId);
+    
+    // Store purchase info in session for promo code option
+    auth.setLoginSession(telegramId, {
+      pendingPurchase: {
+        product,
+        duration,
+        keyType,
+        originalPrice: price
+      }
+    });
+    
+    return ctx.editMessageText(
+      `🛒 *Confirm Purchase*\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n` +
+      `📦 Product: *${product}*\n` +
+      `🔑 Type: *${keyType}*\n` +
+      `⏱️ Duration: *${formatDuration(duration)}*\n` +
+      `💰 Price: *${formatBalance(price)}*\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `💵 Your Balance: *${formatBalance(user.balance)}*\n\n` +
+      `Do you have a promo code?`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '⭐ Apply Promo Code', callback_data: 'apply_promo' }],
+            [{ text: '✅ Confirm Purchase', callback_data: 'finalize_purchase' }],
+            [{ text: '⬅️ Back', callback_data: `product_${product}` }]
+          ]
+        }
+      }
+    );
+  });
+  
+  // Apply promo code
+  bot.action('apply_promo', (ctx) => {
+    if (!auth.isLoggedIn(ctx.from.id)) {
+      return ctx.answerCbQuery('❌ You are not logged in. Use /login');
+    }
+    
+    const session = auth.getLoginSession(ctx.from.id);
+    if (!session.pendingPurchase) {
+      return ctx.answerCbQuery('❌ No pending purchase');
+    }
+    
+    auth.setLoginSession(ctx.from.id, { 
+      ...session, 
+      step: 'awaiting_promo_code' 
+    });
+    
+    return ctx.editMessageText(
+      `⭐ *Apply Promo Code*\n\n` +
+      `Please type your promo code now:`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '❌ Cancel', callback_data: 'cancel_promo' }]
+          ]
+        }
+      }
+    );
+  });
+  
+  // Cancel promo and go back to confirm
+  bot.action('cancel_promo', (ctx) => {
+    if (!auth.isLoggedIn(ctx.from.id)) {
+      return ctx.answerCbQuery('❌ You are not logged in. Use /login');
+    }
+    
+    const session = auth.getLoginSession(ctx.from.id);
+    if (!session.pendingPurchase) {
+      return ctx.answerCbQuery('❌ No pending purchase');
+    }
+    
+    const { product, duration, keyType, originalPrice } = session.pendingPurchase;
+    const user = auth.getLoggedInUser(ctx.from.id);
+    
+    // Clear promo step
+    auth.setLoginSession(ctx.from.id, { 
+      pendingPurchase: session.pendingPurchase 
+    });
+    
+    return ctx.editMessageText(
+      `🛒 *Confirm Purchase*\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n` +
+      `📦 Product: *${product}*\n` +
+      `🔑 Type: *${keyType}*\n` +
+      `⏱️ Duration: *${formatDuration(duration)}*\n` +
+      `💰 Price: *${formatBalance(originalPrice)}*\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `💵 Your Balance: *${formatBalance(user.balance)}*`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '⭐ Apply Promo Code', callback_data: 'apply_promo' }],
+            [{ text: '✅ Confirm Purchase', callback_data: 'finalize_purchase' }],
+            [{ text: '⬅️ Back', callback_data: `product_${product}` }]
+          ]
+        }
+      }
+    );
+  });
+  
+  // Finalize purchase
+  bot.action('finalize_purchase', async (ctx) => {
+    const telegramId = ctx.from.id;
+    
+    if (!auth.isLoggedIn(telegramId)) {
+      return ctx.answerCbQuery('❌ You are not logged in. Use /login');
+    }
+    
+    const session = auth.getLoginSession(telegramId);
+    if (!session.pendingPurchase) {
+      return ctx.answerCbQuery('❌ No pending purchase');
+    }
+    
+    const { product, duration, keyType, originalPrice, discountedPrice, promoCode } = session.pendingPurchase;
+    const finalPrice = discountedPrice !== undefined ? discountedPrice : originalPrice;
     
     const user = auth.getLoggedInUser(telegramId);
     
     // Check balance
-    if (user.balance < price) {
-      return ctx.answerCbQuery(`❌ Insufficient balance! You need ${formatBalance(price)}`, { show_alert: true });
+    if (user.balance < finalPrice) {
+      return ctx.answerCbQuery(`❌ Insufficient balance! You need ${formatBalance(finalPrice)}`, { show_alert: true });
     }
     
     // Try to get key from stock
@@ -110,27 +260,137 @@ function setupBuyHandler(bot) {
     }
     
     // Deduct balance
-    db.addBalance(user.username, -price);
+    db.addBalance(user.username, -finalPrice);
     
-    // Record purchase
-    db.addPurchase(telegramId, user.username, product, keyType, duration, key, price);
+    // Record purchase with promo code info
+    const purchase = {
+      telegramId,
+      username: user.username,
+      product,
+      keyType,
+      duration,
+      key,
+      price: finalPrice,
+      originalPrice,
+      promoCode: promoCode || null,
+      date: new Date().toISOString()
+    };
+    db.addPurchase(telegramId, user.username, product, keyType, duration, key, finalPrice);
+    
+    // Mark promo code as used
+    if (promoCode) {
+      db.usePromoCode(promoCode, user.username);
+    }
+    
+    // Clear session
+    auth.clearLoginSession(telegramId);
     
     // Get updated balance
     const updatedUser = db.findUserByUsername(user.username);
     
     await ctx.answerCbQuery('✅ Purchase successful!');
     
-    return ctx.editMessageText(
-      `✅ *Purchase Successful!*\n\n` +
+    let successMessage = `✅ *Purchase Successful!*\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n` +
       `📦 Product: *${product}*\n` +
       `🔑 Type: *${keyType}*\n` +
-      `⏱️ Duration: *${formatDuration(duration)}*\n` +
-      `💰 Price: *${formatBalance(price)}*\n\n` +
-      `🔐 Your Key:\n\`${key}\`\n\n` +
-      `💵 New Balance: *${formatBalance(updatedUser.balance)}*`,
+      `⏱️ Duration: *${formatDuration(duration)}*\n`;
+    
+    if (promoCode) {
+      successMessage += `🎁 Promo: *${promoCode}*\n`;
+      successMessage += `💰 Original: ~${formatBalance(originalPrice)}~\n`;
+      successMessage += `💰 Final: *${formatBalance(finalPrice)}*\n`;
+    } else {
+      successMessage += `💰 Price: *${formatBalance(finalPrice)}*\n`;
+    }
+    
+    successMessage += `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `🔐 *Your Key:*\n\`${key}\`\n\n` +
+      `💵 New Balance: *${formatBalance(updatedUser.balance)}*`;
+    
+    return ctx.editMessageText(successMessage, {
+      parse_mode: 'Markdown',
+      ...mainMenuInline()
+    });
+  });
+  
+  // Handle promo code text input
+  bot.on('text', (ctx, next) => {
+    const telegramId = ctx.from.id;
+    const session = auth.getLoginSession(telegramId);
+    const text = ctx.message.text;
+    
+    // Check if user is in promo code entry mode
+    if (session.step !== 'awaiting_promo_code' || text.startsWith('/')) {
+      return next();
+    }
+    
+    if (!session.pendingPurchase) {
+      auth.clearLoginSession(telegramId);
+      return next();
+    }
+    
+    const user = auth.getLoggedInUser(telegramId);
+    if (!user) {
+      return next();
+    }
+    
+    const { product, duration, keyType, originalPrice } = session.pendingPurchase;
+    
+    // Validate promo code
+    const validation = db.validatePromoCode(text, user.username, originalPrice);
+    
+    if (!validation.valid) {
+      return ctx.reply(
+        `❌ *Invalid Promo Code*\n\n${validation.error}\n\nPlease try another code or cancel.`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '❌ Cancel', callback_data: 'cancel_promo' }]
+            ]
+          }
+        }
+      );
+    }
+    
+    // Calculate discount
+    const promo = validation.promo;
+    let discount = 0;
+    if (promo.discountType === 'percentage') {
+      discount = originalPrice * (promo.amount / 100);
+    } else {
+      discount = promo.amount;
+    }
+    
+    const discountedPrice = Math.max(0, originalPrice - discount);
+    
+    // Update session with discounted price
+    auth.setLoginSession(telegramId, {
+      pendingPurchase: {
+        ...session.pendingPurchase,
+        discountedPrice,
+        promoCode: promo.code
+      }
+    });
+    
+    return ctx.reply(
+      `✅ *Promo Code Applied!*\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n` +
+      `🎁 Code: *${promo.code}*\n` +
+      `💰 Original Price: ~${formatBalance(originalPrice)}~\n` +
+      `🔥 Discount: *-${formatBalance(discount)}*\n` +
+      `💵 Final Price: *${formatBalance(discountedPrice)}*\n` +
+      `━━━━━━━━━━━━━━━━━━━━━`,
       {
         parse_mode: 'Markdown',
-        ...mainMenuInline()
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '✅ Confirm Purchase', callback_data: 'finalize_purchase' }],
+            [{ text: '🔄 Use Different Code', callback_data: 'apply_promo' }],
+            [{ text: '⬅️ Cancel', callback_data: 'cancel_promo' }]
+          ]
+        }
       }
     );
   });
@@ -139,6 +399,9 @@ function setupBuyHandler(bot) {
   bot.action('back_main', (ctx) => {
     const user = auth.getLoggedInUser(ctx.from.id);
     const balance = user ? formatBalance(user.balance) : '$0.00';
+    
+    // Clear any pending purchase
+    auth.clearLoginSession(ctx.from.id);
     
     return ctx.editMessageText(
       `🏠 *Main Menu*\n\n` +

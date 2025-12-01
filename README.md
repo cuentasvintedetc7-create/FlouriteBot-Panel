@@ -158,8 +158,26 @@ Edit `config.json` to customize:
 ⚠️ **Important**: The bot token in this repository is for demonstration purposes. Before deploying to production:
 
 1. Create a new bot with [@BotFather](https://t.me/BotFather)
-2. Replace the token in `config.json`
+2. Replace the token in `config.json` OR use environment variables (recommended)
 3. Update the `adminId` to your Telegram user ID
+
+### Using Environment Variables (Recommended)
+
+You can use environment variables instead of storing sensitive data in config.json:
+
+```bash
+# Set environment variables
+export BOT_TOKEN="your_bot_token_here"
+export ADMIN_ID="your_telegram_id_here"
+
+# Then start the bot
+npm start
+```
+
+Or with PM2:
+```bash
+BOT_TOKEN="your_token" ADMIN_ID="your_id" pm2 start server.js --name flouritebot
+```
 
 ## 📜 License
 

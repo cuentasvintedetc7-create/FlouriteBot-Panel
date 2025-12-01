@@ -4,6 +4,9 @@ const config = require('../../config.json');
 // Session storage for login process
 const sessions = new Map();
 
+// Get admin ID - prefer environment variable over config file
+const adminId = process.env.ADMIN_ID ? parseInt(process.env.ADMIN_ID) : config.adminId;
+
 // Check if user is logged in
 function isLoggedIn(telegramId) {
   const user = db.findUserByTelegramId(telegramId);
@@ -17,7 +20,7 @@ function getLoggedInUser(telegramId) {
 
 // Check if user is admin
 function isAdmin(telegramId) {
-  return telegramId === config.adminId;
+  return telegramId === adminId;
 }
 
 // Login user (link telegram account)

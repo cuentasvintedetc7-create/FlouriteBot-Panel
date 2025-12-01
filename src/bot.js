@@ -10,8 +10,9 @@ const { setupAccountHandler } = require('./handlers/account');
 const { setupResetHandler } = require('./handlers/reset');
 const { setupAdminHandler } = require('./handlers/admin');
 
-// Create bot instance
-const bot = new Telegraf(config.botToken);
+// Create bot instance - prefer environment variable over config file
+const botToken = process.env.BOT_TOKEN || config.botToken;
+const bot = new Telegraf(botToken);
 
 // Auth middleware - check if user is logged in
 bot.use((ctx, next) => {

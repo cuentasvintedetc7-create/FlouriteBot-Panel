@@ -170,7 +170,8 @@ function setupAccountHandler(bot) {
       `🎁 *Redeem Promocode*\n\n` +
       `To redeem a promocode, use:\n` +
       `/redeem CODE\n\n` +
-      `Example: \`/redeem WELCOME100\``,
+      `Example: \`/redeem WELCOME100\`\n\n` +
+      `_Note: Contact admin for valid promocodes._`,
       {
         parse_mode: 'Markdown',
         ...accountMenu()

@@ -1,0 +1,20 @@
+[
+  {
+    "id": 1,
+    "login": "admin",
+    "password": "admin123",
+    "balance": 1000,
+    "telegramId": null,
+    "isAdmin": true,
+    "createdAt": "2024-01-01T00:00:00.000Z"
+  },
+  {
+    "id": 2,
+    "login": "demo",
+    "password": "demo123",
+    "balance": 50,
+    "telegramId": null,
+    "isAdmin": false,
+    "createdAt": "2024-01-01T00:00:00.000Z"
+  }
+]

@@ -1,0 +1,19 @@
+{
+  "botToken": "8390016809:AAE5CL8pReQl1bolnl940AOkJ_8AY7mlwns",
+  "adminId": 7458257277,
+  "prices": {
+    "1day": 2.30,
+    "7days": 10,
+    "30days": 18
+  },
+  "products": [
+    "Free Fire (iOS)",
+    "Gbox",
+    "COD (iOS)"
+  ],
+  "keyFormats": [
+    "Flourite",
+    "BRMODS",
+    "DRIP MOBILE"
+  ]
+}

@@ -14,7 +14,7 @@ function setupLoginHandler(bot) {
     
     // Start login process
     auth.setLoginSession(telegramId, { step: 'awaiting_login' });
-    return ctx.reply('📝 Please enter your LOGIN:');
+    return ctx.reply('📝 Please enter your USERNAME:');
   });
   
   // Handle text messages for login process

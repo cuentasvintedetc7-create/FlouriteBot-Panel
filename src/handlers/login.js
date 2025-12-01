@@ -14,7 +14,7 @@ function setupLoginHandler(bot) {
     
     // Start login process
     auth.setLoginSession(telegramId, { step: 'awaiting_login' });
-    return ctx.reply('📝 Please enter your LOGIN:');
+    return ctx.reply('📝 Please enter your USERNAME:');
   });
   
   // Handle text messages for login process
@@ -31,7 +31,7 @@ function setupLoginHandler(bot) {
     // Handle login step
     if (session.step === 'awaiting_login') {
       // Check if user exists
-      const user = db.findUserByLogin(text);
+      const user = db.findUserByUsername(text);
       if (!user) {
         auth.clearLoginSession(telegramId);
         return ctx.reply('❌ User not found. Please try again with /login');
@@ -43,21 +43,21 @@ function setupLoginHandler(bot) {
         return ctx.reply('❌ This account is already linked to another Telegram account.');
       }
       
-      auth.setLoginSession(telegramId, { step: 'awaiting_password', login: text });
+      auth.setLoginSession(telegramId, { step: 'awaiting_password', username: text });
       return ctx.reply('🔐 Please enter your PASSWORD:');
     }
     
     // Handle password step
     if (session.step === 'awaiting_password') {
-      const user = auth.validateCredentials(session.login, text);
+      const user = auth.validateCredentials(session.username, text);
       
       if (user) {
         // Link telegram account
-        auth.loginUser(telegramId, session.login);
+        auth.loginUser(telegramId, session.username);
         auth.clearLoginSession(telegramId);
         
         return ctx.reply(
-          `✅ Welcome, ${session.login}!\n\n` +
+          `✅ Welcome, ${session.username}!\n\n` +
           `💰 Your balance: $${user.balance.toFixed(2)}\n\n` +
           `Use the menu below to navigate.`,
           mainMenu()

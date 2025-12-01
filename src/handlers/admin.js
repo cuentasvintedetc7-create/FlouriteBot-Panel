@@ -15,9 +15,9 @@ function setupAdminHandler(bot) {
       `🔐 *Admin Panel*\n\n` +
       `Available commands:\n\n` +
       `👤 *User Management:*\n` +
-      `/createuser LOGIN PASSWORD - Create new user\n` +
-      `/deleteuser LOGIN - Delete user\n` +
-      `/addbalance LOGIN AMOUNT - Add balance to user\n\n` +
+      `/createuser USERNAME PASSWORD - Create new user\n` +
+      `/deleteuser USERNAME - Delete user\n` +
+      `/addbalance USERNAME AMOUNT - Add balance to user\n\n` +
       `📦 *Stock Management:*\n` +
       `/stock - View stock summary\n` +
       `/createstock PRODUCT KEYTYPE DURATION AMOUNT - Generate keys\n\n` +
@@ -38,21 +38,21 @@ function setupAdminHandler(bot) {
     const args = ctx.message.text.split(' ').slice(1);
     
     if (args.length < 2) {
-      return ctx.reply('❌ Usage: /createuser LOGIN PASSWORD');
+      return ctx.reply('❌ Usage: /createuser USERNAME PASSWORD');
     }
     
-    const [login, password] = args;
+    const [username, password] = args;
     
     // Check if user already exists
-    if (db.findUserByLogin(login)) {
+    if (db.findUserByUsername(username)) {
       return ctx.reply('❌ User already exists.');
     }
     
-    const user = db.createUser(login, password);
+    const user = db.createUser(username, password);
     
     return ctx.reply(
       `✅ *User Created*\n\n` +
-      `📛 Login: \`${user.login}\`\n` +
+      `📛 Username: \`${user.username}\`\n` +
       `🔐 Password: \`${password}\`\n` +
       `💰 Balance: ${formatBalance(user.balance)}`,
       { parse_mode: 'Markdown' }
@@ -68,19 +68,19 @@ function setupAdminHandler(bot) {
     const args = ctx.message.text.split(' ').slice(1);
     
     if (args.length < 1) {
-      return ctx.reply('❌ Usage: /deleteuser LOGIN');
+      return ctx.reply('❌ Usage: /deleteuser USERNAME');
     }
     
-    const login = args[0];
+    const username = args[0];
     
     // Check if user exists
-    if (!db.findUserByLogin(login)) {
+    if (!db.findUserByUsername(username)) {
       return ctx.reply('❌ User not found.');
     }
     
-    db.deleteUser(login);
+    db.deleteUser(username);
     
-    return ctx.reply(`✅ User \`${login}\` has been deleted.`, { parse_mode: 'Markdown' });
+    return ctx.reply(`✅ User \`${username}\` has been deleted.`, { parse_mode: 'Markdown' });
   });
   
   // Add balance command
@@ -92,10 +92,10 @@ function setupAdminHandler(bot) {
     const args = ctx.message.text.split(' ').slice(1);
     
     if (args.length < 2) {
-      return ctx.reply('❌ Usage: /addbalance LOGIN AMOUNT');
+      return ctx.reply('❌ Usage: /addbalance USERNAME AMOUNT');
     }
     
-    const [login, amountStr] = args;
+    const [username, amountStr] = args;
     const amount = parseFloat(amountStr);
     
     if (isNaN(amount)) {
@@ -103,19 +103,19 @@ function setupAdminHandler(bot) {
     }
     
     // Check if user exists
-    const user = db.findUserByLogin(login);
+    const user = db.findUserByUsername(username);
     if (!user) {
       return ctx.reply('❌ User not found.');
     }
     
-    const updatedUser = db.addBalance(login, amount);
+    const updatedUser = db.addBalance(username, amount);
     
     // Log the topup
-    db.addTopup(login, amount, 'Admin');
+    db.addTopup(username, amount, 'Admin');
     
     return ctx.reply(
       `✅ *Balance Updated*\n\n` +
-      `📛 User: \`${login}\`\n` +
+      `📛 User: \`${username}\`\n` +
       `➕ Added: ${formatBalance(amount)}\n` +
       `💰 New Balance: ${formatBalance(updatedUser.balance)}`,
       { parse_mode: 'Markdown' }
@@ -261,7 +261,7 @@ function setupAdminHandler(bot) {
     
     users.forEach((user, index) => {
       const linked = user.telegramId ? '✅' : '❌';
-      message += `${index + 1}. \`${user.login}\` - ${formatBalance(user.balance)} ${linked}\n`;
+      message += `${index + 1}. \`${user.username}\` - ${formatBalance(user.balance)} ${linked}\n`;
     });
     
     message += `\n_✅ = Linked to Telegram, ❌ = Not linked_`;

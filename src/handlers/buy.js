@@ -110,13 +110,13 @@ function setupBuyHandler(bot) {
     }
     
     // Deduct balance
-    db.addBalance(user.login, -price);
+    db.addBalance(user.username, -price);
     
     // Record purchase
-    db.addPurchase(telegramId, user.login, product, keyType, duration, key, price);
+    db.addPurchase(telegramId, user.username, product, keyType, duration, key, price);
     
     // Get updated balance
-    const updatedUser = db.findUserByLogin(user.login);
+    const updatedUser = db.findUserByUsername(user.username);
     
     await ctx.answerCbQuery('✅ Purchase successful!');
     

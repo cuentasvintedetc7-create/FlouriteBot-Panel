@@ -215,6 +215,176 @@ function addResetLog(telegramId, username, key) {
   return saveResetLog(log);
 }
 
+// Enhanced topup functions for payment proof system
+function addTopupRequest(login, telegramId, phone, method, proof) {
+  const topups = getTopups();
+  const maxId = topups.length > 0 ? Math.max(...topups.map(t => t.id || 0)) : 0;
+  const newTopup = {
+    id: maxId + 1,
+    login,
+    telegramId,
+    phone: phone || null,
+    method,
+    proof,
+    status: 'PENDING',
+    date: new Date().toISOString()
+  };
+  topups.push(newTopup);
+  saveTopups(topups);
+  return newTopup;
+}
+
+function updateTopupStatus(topupId, status, amount = null) {
+  const topups = getTopups();
+  const index = topups.findIndex(t => t.id === topupId);
+  if (index !== -1) {
+    topups[index].status = status;
+    if (amount !== null) {
+      topups[index].amount = amount;
+    }
+    topups[index].processedAt = new Date().toISOString();
+    saveTopups(topups);
+    return topups[index];
+  }
+  return null;
+}
+
+function getTopupById(topupId) {
+  const topups = getTopups();
+  return topups.find(t => t.id === topupId);
+}
+
+function getPendingTopups() {
+  const topups = getTopups();
+  return topups.filter(t => t.status === 'PENDING');
+}
+
+// Promo codes functions
+function getPromoCodes() {
+  return readJSON('promo_codes.json') || [];
+}
+
+function savePromoCodes(codes) {
+  return writeJSON('promo_codes.json', codes);
+}
+
+function createPromoCode(code, discountType, amount, minPurchase, maxUses, expiresAt) {
+  const codes = getPromoCodes();
+  const newCode = {
+    code: code.toUpperCase(),
+    discountType,
+    amount,
+    minPurchase: minPurchase || 0,
+    maxUses: maxUses || 0,
+    usedBy: [],
+    expiresAt: expiresAt || null,
+    active: true,
+    createdAt: new Date().toISOString()
+  };
+  codes.push(newCode);
+  savePromoCodes(codes);
+  return newCode;
+}
+
+function findPromoCode(code) {
+  const codes = getPromoCodes();
+  return codes.find(c => c.code.toUpperCase() === code.toUpperCase());
+}
+
+function usePromoCode(code, username) {
+  const codes = getPromoCodes();
+  const index = codes.findIndex(c => c.code.toUpperCase() === code.toUpperCase());
+  if (index !== -1) {
+    codes[index].usedBy.push({
+      username,
+      usedAt: new Date().toISOString()
+    });
+    savePromoCodes(codes);
+    return codes[index];
+  }
+  return null;
+}
+
+function updatePromoCode(code, updates) {
+  const codes = getPromoCodes();
+  const index = codes.findIndex(c => c.code.toUpperCase() === code.toUpperCase());
+  if (index !== -1) {
+    codes[index] = { ...codes[index], ...updates };
+    savePromoCodes(codes);
+    return codes[index];
+  }
+  return null;
+}
+
+function deletePromoCode(code) {
+  const codes = getPromoCodes();
+  const index = codes.findIndex(c => c.code.toUpperCase() === code.toUpperCase());
+  if (index !== -1) {
+    codes.splice(index, 1);
+    savePromoCodes(codes);
+    return true;
+  }
+  return false;
+}
+
+function validatePromoCode(code, username, purchaseAmount) {
+  const promo = findPromoCode(code);
+  if (!promo) return { valid: false, error: 'Invalid promo code' };
+  if (!promo.active) return { valid: false, error: 'Promo code is disabled' };
+  if (promo.expiresAt && new Date(promo.expiresAt) < new Date()) {
+    return { valid: false, error: 'Promo code has expired' };
+  }
+  if (promo.maxUses > 0 && promo.usedBy.length >= promo.maxUses) {
+    return { valid: false, error: 'Promo code has reached maximum uses' };
+  }
+  if (promo.usedBy.some(u => u.username.toLowerCase() === username.toLowerCase())) {
+    return { valid: false, error: 'You have already used this promo code' };
+  }
+  if (purchaseAmount < promo.minPurchase) {
+    return { valid: false, error: `Minimum purchase amount is $${promo.minPurchase}` };
+  }
+  return { valid: true, promo };
+}
+
+// Broadcast log functions
+function getBroadcasts() {
+  return readJSON('broadcast.json') || [];
+}
+
+function saveBroadcasts(broadcasts) {
+  return writeJSON('broadcast.json', broadcasts);
+}
+
+function addBroadcast(message, totalSent) {
+  const broadcasts = getBroadcasts();
+  const maxId = broadcasts.length > 0 ? Math.max(...broadcasts.map(b => b.id || 0)) : 0;
+  const newBroadcast = {
+    id: maxId + 1,
+    message,
+    totalSent,
+    date: new Date().toISOString()
+  };
+  broadcasts.push(newBroadcast);
+  saveBroadcasts(broadcasts);
+  return newBroadcast;
+}
+
+// Remove balance function
+function removeBalance(username, amount) {
+  const user = findUserByUsername(username);
+  if (user) {
+    const newBalance = Math.max(0, user.balance - amount);
+    return updateUser(username, { balance: newBalance });
+  }
+  return null;
+}
+
+// Get users by role
+function getUsersByRole(role) {
+  const users = getUsers();
+  return users.filter(u => u.role === role);
+}
+
 module.exports = {
   // Users
   getUsers,
@@ -225,6 +395,8 @@ module.exports = {
   updateUser,
   deleteUser,
   addBalance,
+  removeBalance,
+  getUsersByRole,
   // Stock
   getStock,
   saveStock,
@@ -241,6 +413,23 @@ module.exports = {
   saveTopups,
   addTopup,
   getUserTopups,
+  addTopupRequest,
+  updateTopupStatus,
+  getTopupById,
+  getPendingTopups,
+  // Promo codes
+  getPromoCodes,
+  savePromoCodes,
+  createPromoCode,
+  findPromoCode,
+  usePromoCode,
+  updatePromoCode,
+  deletePromoCode,
+  validatePromoCode,
+  // Broadcasts
+  getBroadcasts,
+  saveBroadcasts,
+  addBroadcast,
   // Reset log
   getResetLog,
   saveResetLog,

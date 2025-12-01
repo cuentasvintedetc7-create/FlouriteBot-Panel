@@ -18,9 +18,41 @@ function getLoggedInUser(telegramId) {
   return db.findUserByTelegramId(telegramId);
 }
 
-// Check if user is admin
+// Check if user is admin (ADMIN_ID from env)
 function isAdmin(telegramId) {
   return telegramId === adminId;
+}
+
+// Get admin ID
+function getAdminId() {
+  return adminId;
+}
+
+// Check if user has specific role
+function hasRole(telegramId, roles) {
+  if (isAdmin(telegramId)) return true;
+  const user = db.findUserByTelegramId(telegramId);
+  if (!user) return false;
+  const userRole = user.role || 'user';
+  if (Array.isArray(roles)) {
+    return roles.includes(userRole);
+  }
+  return userRole === roles;
+}
+
+// Check if user is staff (admin or staff role)
+function isStaff(telegramId) {
+  return isAdmin(telegramId) || hasRole(telegramId, ['admin', 'staff']);
+}
+
+// Check if user is reseller
+function isReseller(telegramId) {
+  return hasRole(telegramId, ['admin', 'reseller']);
+}
+
+// Check if user is support
+function isSupport(telegramId) {
+  return hasRole(telegramId, ['admin', 'staff', 'support']);
 }
 
 // Login user (link telegram account)
@@ -89,6 +121,11 @@ module.exports = {
   isLoggedIn,
   getLoggedInUser,
   isAdmin,
+  getAdminId,
+  hasRole,
+  isStaff,
+  isReseller,
+  isSupport,
   loginUser,
   logoutUser,
   validateCredentials,

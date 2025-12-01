@@ -1,7 +1,7 @@
 const auth = require('../utils/auth');
 const db = require('../utils/db');
 const { accountMenu } = require('../keyboards/accountMenu');
-const { mainMenuInline } = require('../keyboards/mainMenu');
+const { mainMenuInline, mainMenu } = require('../keyboards/mainMenu');
 const { formatBalance, formatPurchase, formatTopup } = require('../utils/format');
 
 function setupAccountHandler(bot) {
@@ -14,9 +14,13 @@ function setupAccountHandler(bot) {
     const user = auth.getLoggedInUser(ctx.from.id);
     
     return ctx.reply(
-      `👤 *Account Menu*\n\n` +
+      `👤 *My Account*\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n` +
       `📛 Username: *${user.username}*\n` +
-      `💰 Balance: *${formatBalance(user.balance)}*\n\n` +
+      `💰 Balance: *${formatBalance(user.balance)}*\n` +
+      `📱 Phone: ${user.phone || 'Not set'}\n` +
+      `👤 Role: ${user.role || 'user'}\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n\n` +
       `Select an option:`,
       {
         parse_mode: 'Markdown',
@@ -34,9 +38,13 @@ function setupAccountHandler(bot) {
     const user = auth.getLoggedInUser(ctx.from.id);
     
     return ctx.editMessageText(
-      `👤 *Account Menu*\n\n` +
+      `👤 *My Account*\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n` +
       `📛 Username: *${user.username}*\n` +
-      `💰 Balance: *${formatBalance(user.balance)}*\n\n` +
+      `💰 Balance: *${formatBalance(user.balance)}*\n` +
+      `📱 Phone: ${user.phone || 'Not set'}\n` +
+      `👤 Role: ${user.role || 'user'}\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n\n` +
       `Select an option:`,
       {
         parse_mode: 'Markdown',
@@ -45,8 +53,8 @@ function setupAccountHandler(bot) {
     );
   });
   
-  // Handle "👤 Account" button from keyboard
-  bot.hears('👤 Account', (ctx) => {
+  // Handle "👤 Account" and "👤 My Account" button from keyboard
+  bot.hears(['👤 Account', '👤 My Account'], (ctx) => {
     if (!auth.isLoggedIn(ctx.from.id)) {
       return ctx.reply('❌ You are not logged in. Use /login');
     }
@@ -54,15 +62,51 @@ function setupAccountHandler(bot) {
     const user = auth.getLoggedInUser(ctx.from.id);
     
     return ctx.reply(
-      `👤 *Account Menu*\n\n` +
+      `👤 *My Account*\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n` +
       `📛 Username: *${user.username}*\n` +
-      `💰 Balance: *${formatBalance(user.balance)}*\n\n` +
+      `💰 Balance: *${formatBalance(user.balance)}*\n` +
+      `📱 Phone: ${user.phone || 'Not set'}\n` +
+      `👤 Role: ${user.role || 'user'}\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n\n` +
       `Select an option:`,
       {
         parse_mode: 'Markdown',
         ...accountMenu()
       }
     );
+  });
+  
+  // Handle "🧾 My Purchases" from keyboard
+  bot.hears('🧾 My Purchases', (ctx) => {
+    if (!auth.isLoggedIn(ctx.from.id)) {
+      return ctx.reply('❌ You are not logged in. Use /login');
+    }
+    
+    const user = auth.getLoggedInUser(ctx.from.id);
+    const purchases = db.getUserPurchases(user.username);
+    
+    if (purchases.length === 0) {
+      return ctx.reply(
+        `🛍️ *Purchase History*\n\n` +
+        `No purchases yet.`,
+        { parse_mode: 'Markdown' }
+      );
+    }
+    
+    // Show last 5 purchases
+    const recentPurchases = purchases.slice(-5).reverse();
+    let message = `🛍️ *Purchase History*\n\n`;
+    
+    recentPurchases.forEach((purchase, index) => {
+      message += `*#${index + 1}*\n${formatPurchase(purchase)}\n\n`;
+    });
+    
+    if (purchases.length > 5) {
+      message += `_Showing last 5 of ${purchases.length} purchases_`;
+    }
+    
+    return ctx.reply(message, { parse_mode: 'Markdown' });
   });
   
   // Balance action
@@ -75,8 +119,10 @@ function setupAccountHandler(bot) {
     
     return ctx.editMessageText(
       `💰 *Your Balance*\n\n` +
-      `Current Balance: *${formatBalance(user.balance)}*\n\n` +
-      `Contact admin to add funds.`,
+      `━━━━━━━━━━━━━━━━━━━━━\n` +
+      `Current Balance: *${formatBalance(user.balance)}*\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `Use "💰 Add Balance" to add funds.`,
       {
         parse_mode: 'Markdown',
         ...accountMenu()
@@ -171,7 +217,7 @@ function setupAccountHandler(bot) {
       `To redeem a promocode, use:\n` +
       `/redeem CODE\n\n` +
       `Example: \`/redeem WELCOME100\`\n\n` +
-      `_Note: Contact admin for valid promocodes._`,
+      `_Or apply promo codes during purchase!_`,
       {
         parse_mode: 'Markdown',
         ...accountMenu()
@@ -191,8 +237,23 @@ function setupAccountHandler(bot) {
       return ctx.reply('❌ Please provide a promocode. Usage: /redeem CODE');
     }
     
-    // Placeholder - promocodes can be implemented later
-    return ctx.reply('❌ Invalid promocode or already used.');
+    const code = args[0];
+    const user = auth.getLoggedInUser(ctx.from.id);
+    
+    // Validate promo code
+    const validation = db.validatePromoCode(code, user.username, 0);
+    
+    if (!validation.valid) {
+      return ctx.reply(`❌ ${validation.error}`);
+    }
+    
+    return ctx.reply(
+      `✅ *Valid Promo Code!*\n\n` +
+      `🎁 Code: \`${validation.promo.code}\`\n` +
+      `💰 Discount: ${validation.promo.discountType === 'percentage' ? `${validation.promo.amount}%` : formatBalance(validation.promo.amount)}\n\n` +
+      `_Use this code during your next purchase!_`,
+      { parse_mode: 'Markdown' }
+    );
   });
 }
 

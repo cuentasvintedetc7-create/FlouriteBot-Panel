@@ -24,22 +24,22 @@ function isAdmin(telegramId) {
 }
 
 // Login user (link telegram account)
-function loginUser(telegramId, login) {
-  return db.updateUser(login, { telegramId });
+function loginUser(telegramId, username) {
+  return db.updateUser(username, { telegramId });
 }
 
 // Logout user
 function logoutUser(telegramId) {
   const user = db.findUserByTelegramId(telegramId);
   if (user) {
-    return db.updateUser(user.login, { telegramId: null });
+    return db.updateUser(user.username, { telegramId: null });
   }
   return null;
 }
 
 // Validate credentials
-function validateCredentials(login, password) {
-  const user = db.findUserByLogin(login);
+function validateCredentials(username, password) {
+  const user = db.findUserByUsername(username);
   if (user && user.password === password) {
     return user;
   }

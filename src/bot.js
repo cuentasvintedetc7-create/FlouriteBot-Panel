@@ -58,7 +58,7 @@ bot.start((ctx) => {
   if (auth.isLoggedIn(telegramId)) {
     const user = auth.getLoggedInUser(telegramId);
     return ctx.reply(
-      `👋 Welcome back, *${user.login}*!\n\n` +
+      `👋 Welcome back, *${user.username}*!\n\n` +
       `💰 Your balance: *$${user.balance.toFixed(2)}*\n\n` +
       `Use the menu below to navigate.`,
       {

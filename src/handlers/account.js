@@ -15,7 +15,7 @@ function setupAccountHandler(bot) {
     
     return ctx.reply(
       `👤 *Account Menu*\n\n` +
-      `📛 Username: *${user.login}*\n` +
+      `📛 Username: *${user.username}*\n` +
       `💰 Balance: *${formatBalance(user.balance)}*\n\n` +
       `Select an option:`,
       {
@@ -35,7 +35,7 @@ function setupAccountHandler(bot) {
     
     return ctx.editMessageText(
       `👤 *Account Menu*\n\n` +
-      `📛 Username: *${user.login}*\n` +
+      `📛 Username: *${user.username}*\n` +
       `💰 Balance: *${formatBalance(user.balance)}*\n\n` +
       `Select an option:`,
       {
@@ -55,7 +55,7 @@ function setupAccountHandler(bot) {
     
     return ctx.reply(
       `👤 *Account Menu*\n\n` +
-      `📛 Username: *${user.login}*\n` +
+      `📛 Username: *${user.username}*\n` +
       `💰 Balance: *${formatBalance(user.balance)}*\n\n` +
       `Select an option:`,
       {
@@ -91,7 +91,7 @@ function setupAccountHandler(bot) {
     }
     
     const user = auth.getLoggedInUser(ctx.from.id);
-    const purchases = db.getUserPurchases(user.login);
+    const purchases = db.getUserPurchases(user.username);
     
     if (purchases.length === 0) {
       return ctx.editMessageText(
@@ -129,7 +129,7 @@ function setupAccountHandler(bot) {
     }
     
     const user = auth.getLoggedInUser(ctx.from.id);
-    const topups = db.getUserTopups(user.login);
+    const topups = db.getUserTopups(user.username);
     
     if (topups.length === 0) {
       return ctx.editMessageText(

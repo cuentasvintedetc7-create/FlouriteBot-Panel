@@ -18,7 +18,7 @@ function setupResetHandler(bot) {
     const user = auth.getLoggedInUser(ctx.from.id);
     
     // Log the reset
-    db.addResetLog(ctx.from.id, user.login, key);
+    db.addResetLog(ctx.from.id, user.username, key);
     
     // Always respond with reset successful
     return ctx.reply('♻️ Key has been reset.');

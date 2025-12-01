@@ -1,7 +1,7 @@
 [
   {
     "id": 1,
-    "login": "admin",
+    "username": "admin",
     "password": "admin123",
     "balance": 1000,
     "telegramId": null,
@@ -10,7 +10,7 @@
   },
   {
     "id": 2,
-    "login": "demo",
+    "username": "demo",
     "password": "demo123",
     "balance": 50,
     "telegramId": null,

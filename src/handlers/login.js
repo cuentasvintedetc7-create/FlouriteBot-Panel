@@ -2,6 +2,7 @@ const { Markup } = require('telegraf');
 const auth = require('../utils/auth');
 const db = require('../utils/db');
 const { mainMenu, mainMenuInline } = require('../keyboards/mainMenu');
+const { processLoginSecurityCheck } = require('../utils/ipCheck');
 
 function setupLoginHandler(bot) {
   // Login command
@@ -13,19 +14,18 @@ function setupLoginHandler(bot) {
       return ctx.reply('✅ You are already logged in!', mainMenu());
     }
     
-    // Start login process - ask for phone first
+    // Start login process - ask for phone first (MANDATORY)
     auth.setLoginSession(telegramId, { step: 'awaiting_phone' });
     
     return ctx.reply(
       `📱 *Phone Number Verification*\n\n` +
       `Please share your phone number to continue.\n` +
-      `This helps us verify your identity.`,
+      `This is *required* to verify your identity.`,
       {
         parse_mode: 'Markdown',
         reply_markup: {
           keyboard: [
-            [{ text: '📱 Send Phone Number', request_contact: true }],
-            [{ text: '⏭️ Skip (Continue without phone)' }]
+            [{ text: '📱 Send Phone Number', request_contact: true }]
           ],
           resize_keyboard: true,
           one_time_keyboard: true
@@ -47,7 +47,19 @@ function setupLoginHandler(bot) {
     
     // Verify the contact belongs to the user
     if (contact.user_id !== telegramId) {
-      return ctx.reply('❌ Please share your own phone number.');
+      return ctx.reply(
+        '❌ Please share your own phone number.\n\n' +
+        'Use the button below to send your number:',
+        {
+          reply_markup: {
+            keyboard: [
+              [{ text: '📱 Send Phone Number', request_contact: true }]
+            ],
+            resize_keyboard: true,
+            one_time_keyboard: true
+          }
+        }
+      );
     }
     
     // Store phone and continue to login
@@ -66,28 +78,8 @@ function setupLoginHandler(bot) {
     );
   });
   
-  // Handle "Skip" button for phone
-  bot.hears('⏭️ Skip (Continue without phone)', (ctx) => {
-    const telegramId = ctx.from.id;
-    const session = auth.getLoginSession(telegramId);
-    
-    if (session.step !== 'awaiting_phone') {
-      return;
-    }
-    
-    auth.setLoginSession(telegramId, { step: 'awaiting_login' });
-    
-    return ctx.reply(
-      `📝 Please enter your *USERNAME*:`,
-      { 
-        parse_mode: 'Markdown',
-        reply_markup: { remove_keyboard: true }
-      }
-    );
-  });
-  
   // Handle text messages for login process
-  bot.on('text', (ctx, next) => {
+  bot.on('text', async (ctx, next) => {
     const telegramId = ctx.from.id;
     const session = auth.getLoginSession(telegramId);
     const text = ctx.message.text;
@@ -122,12 +114,34 @@ function setupLoginHandler(bot) {
       const user = auth.validateCredentials(session.username, text);
       
       if (user) {
-        // Link telegram account and save phone if provided
+        // Check if user is admin - admins can have multiple sessions
+        const isUserAdmin = auth.isAdmin(telegramId) || user.role === 'admin';
+        
+        // Invalidate previous session if user is not admin (Task 6: Session management)
+        if (!isUserAdmin && user.telegramId && user.telegramId !== telegramId) {
+          // Notify previous session about invalidation
+          try {
+            await ctx.telegram.sendMessage(
+              user.telegramId,
+              '⚠️ *Session Invalidated*\n\n' +
+              'Your session has been terminated because you logged in from another device.\n\n' +
+              'If this wasn\'t you, please change your password immediately.',
+              { parse_mode: 'Markdown' }
+            );
+          } catch (e) {
+            // Previous session may have blocked the bot
+          }
+        }
+        
+        // Link telegram account and save phone
         const updates = { telegramId };
         if (session.phone) {
           updates.phone = session.phone;
         }
         db.updateUser(session.username, updates);
+        
+        // Process IP security check (Task 5)
+        const securityResult = await processLoginSecurityCheck(ctx, user, db, auth);
         
         auth.clearLoginSession(telegramId);
         

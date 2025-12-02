@@ -44,11 +44,6 @@ bot.use((ctx, next) => {
     return next();
   }
   
-  // Allow "Skip" button during phone step
-  if (messageText === '⏭️ Skip (Continue without phone)') {
-    return next();
-  }
-  
   // Check if logged in for other commands/actions
   if (messageText && !messageText.startsWith('/') && !auth.isLoggedIn(telegramId)) {
     // Skip non-command messages from non-logged-in users

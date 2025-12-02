@@ -1,10 +1,10 @@
 {
   "botToken": "8390016809:AAE5CL8pReQl1bolnl940AOkJ_8AY7mlwns",
   "adminId": 7458257277,
-  "categories": ["FREE FIRE IOS", "GBOX", "COD MOBILE"],
+  "categories": ["Free Fire iOS", "GBOX", "COD Mobile"],
   "products": {
-    "FREE FIRE IOS": {
-      "name": "Flourite",
+    "Free Fire iOS": {
+      "name": "FLOURITE",
       "durations": {
         "1day": 2.50,
         "7days": 7,
@@ -17,7 +17,7 @@
         "1year": 6
       }
     },
-    "COD MOBILE": {
+    "COD Mobile": {
       "name": "Call Of Duty",
       "durations": {
         "1day": 3,

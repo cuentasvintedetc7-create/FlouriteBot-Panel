@@ -2,6 +2,37 @@ const { Markup } = require('telegraf');
 const auth = require('../utils/auth');
 const db = require('../utils/db');
 const { mainMenu, mainMenuInline } = require('../keyboards/mainMenu');
+const { processLoginSecurityCheck } = require('../utils/ipCheck');
+
+// Simple in-memory lock for login operations (prevents race conditions)
+const loginLocks = new Map();
+
+function acquireLoginLock(username) {
+  const normalizedUsername = username.toLowerCase();
+  if (loginLocks.has(normalizedUsername)) {
+    return false;
+  }
+  loginLocks.set(normalizedUsername, Date.now());
+  return true;
+}
+
+function releaseLoginLock(username) {
+  const normalizedUsername = username.toLowerCase();
+  loginLocks.delete(normalizedUsername);
+}
+
+// Clean up stale locks (older than 30 seconds)
+function cleanupStaleLocks() {
+  const now = Date.now();
+  for (const [username, timestamp] of loginLocks.entries()) {
+    if (now - timestamp > 30000) {
+      loginLocks.delete(username);
+    }
+  }
+}
+
+// Run cleanup every 60 seconds
+setInterval(cleanupStaleLocks, 60000);
 
 function setupLoginHandler(bot) {
   // Login command
@@ -13,19 +44,18 @@ function setupLoginHandler(bot) {
       return ctx.reply('✅ You are already logged in!', mainMenu());
     }
     
-    // Start login process - ask for phone first
+    // Start login process - ask for phone first (MANDATORY)
     auth.setLoginSession(telegramId, { step: 'awaiting_phone' });
     
     return ctx.reply(
       `📱 *Phone Number Verification*\n\n` +
       `Please share your phone number to continue.\n` +
-      `This helps us verify your identity.`,
+      `This is *required* to verify your identity.`,
       {
         parse_mode: 'Markdown',
         reply_markup: {
           keyboard: [
-            [{ text: '📱 Send Phone Number', request_contact: true }],
-            [{ text: '⏭️ Skip (Continue without phone)' }]
+            [{ text: '📱 Send Phone Number', request_contact: true }]
           ],
           resize_keyboard: true,
           one_time_keyboard: true
@@ -47,7 +77,19 @@ function setupLoginHandler(bot) {
     
     // Verify the contact belongs to the user
     if (contact.user_id !== telegramId) {
-      return ctx.reply('❌ Please share your own phone number.');
+      return ctx.reply(
+        '❌ Please share your own phone number.\n\n' +
+        'Use the button below to send your number:',
+        {
+          reply_markup: {
+            keyboard: [
+              [{ text: '📱 Send Phone Number', request_contact: true }]
+            ],
+            resize_keyboard: true,
+            one_time_keyboard: true
+          }
+        }
+      );
     }
     
     // Store phone and continue to login
@@ -66,28 +108,8 @@ function setupLoginHandler(bot) {
     );
   });
   
-  // Handle "Skip" button for phone
-  bot.hears('⏭️ Skip (Continue without phone)', (ctx) => {
-    const telegramId = ctx.from.id;
-    const session = auth.getLoginSession(telegramId);
-    
-    if (session.step !== 'awaiting_phone') {
-      return;
-    }
-    
-    auth.setLoginSession(telegramId, { step: 'awaiting_login' });
-    
-    return ctx.reply(
-      `📝 Please enter your *USERNAME*:`,
-      { 
-        parse_mode: 'Markdown',
-        reply_markup: { remove_keyboard: true }
-      }
-    );
-  });
-  
   // Handle text messages for login process
-  bot.on('text', (ctx, next) => {
+  bot.on('text', async (ctx, next) => {
     const telegramId = ctx.from.id;
     const session = auth.getLoginSession(telegramId);
     const text = ctx.message.text;
@@ -119,30 +141,67 @@ function setupLoginHandler(bot) {
     
     // Handle password step
     if (session.step === 'awaiting_password') {
-      const user = auth.validateCredentials(session.username, text);
+      // Acquire lock to prevent race conditions during session management
+      if (!acquireLoginLock(session.username)) {
+        return ctx.reply('⏳ Please wait, another login is in progress for this account. Try again in a moment.');
+      }
       
-      if (user) {
-        // Link telegram account and save phone if provided
-        const updates = { telegramId };
-        if (session.phone) {
-          updates.phone = session.phone;
+      try {
+        const user = auth.validateCredentials(session.username, text);
+        
+        if (user) {
+          // Check if user is admin - admins can have multiple sessions
+          const isUserAdmin = auth.isAdmin(telegramId) || user.role === 'admin';
+          
+          // Invalidate previous session if user is not admin (Task 6: Session management)
+          if (!isUserAdmin && user.telegramId && user.telegramId !== telegramId) {
+            // Notify previous session about invalidation
+            try {
+              await ctx.telegram.sendMessage(
+                user.telegramId,
+                '⚠️ *Session Invalidated*\n\n' +
+                'Your session has been terminated because you logged in from another device.\n\n' +
+                'If this wasn\'t you, please change your password immediately.',
+                { parse_mode: 'Markdown' }
+              );
+            } catch (e) {
+              // Previous session may have blocked the bot
+            }
+          }
+          
+          // Link telegram account and save phone
+          const updates = { telegramId };
+          if (session.phone) {
+            updates.phone = session.phone;
+          }
+          db.updateUser(session.username, updates);
+          
+          // Process IP security check (Task 5)
+          const securityResult = await processLoginSecurityCheck(ctx, user, db, auth);
+          
+          auth.clearLoginSession(telegramId);
+          
+          // Release lock
+          releaseLoginLock(session.username);
+          
+          // Refresh user data
+          const updatedUser = db.findUserByUsername(session.username);
+        
+          return ctx.reply(
+            `✅ *Welcome, ${session.username}!*\n\n` +
+            `💰 Your balance: *$${updatedUser.balance.toFixed(2)}*\n\n` +
+            `Use the menu below to navigate.`,
+            { parse_mode: 'Markdown', ...mainMenu() }
+          );
+        } else {
+          auth.clearLoginSession(telegramId);
+          releaseLoginLock(session.username);
+          return ctx.reply('❌ Invalid password. Please try again with /login');
         }
-        db.updateUser(session.username, updates);
-        
-        auth.clearLoginSession(telegramId);
-        
-        // Refresh user data
-        const updatedUser = db.findUserByUsername(session.username);
-        
-        return ctx.reply(
-          `✅ *Welcome, ${session.username}!*\n\n` +
-          `💰 Your balance: *$${updatedUser.balance.toFixed(2)}*\n\n` +
-          `Use the menu below to navigate.`,
-          { parse_mode: 'Markdown', ...mainMenu() }
-        );
-      } else {
-        auth.clearLoginSession(telegramId);
-        return ctx.reply('❌ Invalid password. Please try again with /login');
+      } catch (error) {
+        releaseLoginLock(session.username);
+        console.error('Login error:', error);
+        return ctx.reply('❌ An error occurred during login. Please try again.');
       }
     }
     

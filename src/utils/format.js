@@ -38,15 +38,15 @@ function formatDuration(duration) {
 
 // Product name mappings - ONLY these 3 products are valid
 const productNames = {
-  freefire: 'Flourite',
+  freefire: 'FLOURITE',
   gbox: 'Certificate',
   cod: 'Call Of Duty'
 };
 
 // Category name mappings - for stock.json
 const categoryNames = {
-  freefire: 'Free Fire (iOS)',
-  gbox: 'Gbox',
+  freefire: 'Free Fire iOS',
+  gbox: 'GBOX',
   cod: 'COD Mobile'
 };
 

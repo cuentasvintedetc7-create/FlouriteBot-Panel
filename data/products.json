@@ -1,7 +1,7 @@
 {
   "products": {
     "freefire": {
-      "name": "Free Fire iOS",
+      "name": "FLOURITE",
       "durations": {
         "1day": 2.50,
         "7days": 7,
@@ -9,7 +9,7 @@
       }
     },
     "gbox": {
-      "name": "Gbox Certificate",
+      "name": "GBOX Certificate",
       "durations": {
         "1year": 6
       }

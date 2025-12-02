@@ -217,7 +217,8 @@ function setupAccountHandler(bot) {
       `To redeem a promocode, use:\n` +
       `/redeem CODE\n\n` +
       `Example: \`/redeem WELCOME100\`\n\n` +
-      `_Or apply promo codes during purchase!_`,
+      `*Fixed amount codes:* Balance is added directly.\n` +
+      `*Percentage codes:* Apply during purchase.`,
       {
         parse_mode: 'Markdown',
         ...accountMenu()
@@ -243,15 +244,42 @@ function setupAccountHandler(bot) {
     // Validate promo code
     const validation = db.validatePromoCode(code, user.username, 0);
     
-    if (!validation.valid) {
-      return ctx.reply(`❌ ${validation.error}`);
+    if (!validation.valid || !validation.promo) {
+      return ctx.reply(`❌ ${validation.error || 'Invalid promo code'}`);
     }
     
+    const promo = validation.promo;
+    
+    // Only allow 'fixed' type promocodes to add balance directly
+    // Percentage discounts are only for purchases
+    if (promo.discountType === 'percentage') {
+      return ctx.reply(
+        `✅ *Valid Promo Code!*\n\n` +
+        `🎁 Code: \`${promo.code}\`\n` +
+        `💰 Discount: ${promo.amount}%\n\n` +
+        `_This is a discount code. Use it during your next purchase!_`,
+        { parse_mode: 'Markdown' }
+      );
+    }
+    
+    // Fixed amount promocodes add balance to user
+    const amount = promo.amount;
+    
+    // Add balance to user
+    const updatedUser = db.addBalance(user.username, amount);
+    
+    // Mark promo code as used
+    db.usePromoCode(code, user.username);
+    
+    // Log the topup from promocode
+    db.addTopup(user.username, amount, `Promocode: ${promo.code}`);
+    
     return ctx.reply(
-      `✅ *Valid Promo Code!*\n\n` +
-      `🎁 Code: \`${validation.promo.code}\`\n` +
-      `💰 Discount: ${validation.promo.discountType === 'percentage' ? `${validation.promo.amount}%` : formatBalance(validation.promo.amount)}\n\n` +
-      `_Use this code during your next purchase!_`,
+      `✅ *Promocode Redeemed!*\n\n` +
+      `🎁 Code: \`${promo.code}\`\n` +
+      `💰 Balance Added: ${formatBalance(amount)}\n` +
+      `💵 New Balance: ${formatBalance(updatedUser.balance)}\n\n` +
+      `Thank you! 🎉`,
       { parse_mode: 'Markdown' }
     );
   });

@@ -10,8 +10,9 @@ const https = require('https');
 // Sanitize text to prevent Markdown injection
 function sanitizeForMarkdown(text) {
   if (!text || typeof text !== 'string') return 'unknown';
-  // Escape Markdown special characters
+  // Escape backslash first, then other Markdown special characters
   return text
+    .replace(/\\/g, '\\\\')
     .replace(/\*/g, '\\*')
     .replace(/_/g, '\\_')
     .replace(/`/g, '\\`')

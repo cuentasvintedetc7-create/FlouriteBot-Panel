@@ -55,13 +55,10 @@ const API = {
       const data = await response.json();
       
       if (response.status === 401) {
-        // Token expired or invalid - clear local storage and redirect
+        // Token expired or invalid - clear local storage
         this.setToken(null);
-        // Only reload if we're not already on the login page
-        const currentUser = await this.auth.me().catch(() => null);
-        if (!currentUser?.success) {
-          window.dispatchEvent(new Event('session-expired'));
-        }
+        // Dispatch session expired event for the UI to handle
+        window.dispatchEvent(new Event('session-expired'));
         return { success: false, message: 'Session expired' };
       }
       

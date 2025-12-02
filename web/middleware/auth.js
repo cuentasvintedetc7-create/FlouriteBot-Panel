@@ -103,6 +103,12 @@ function tokenNeedsRenewal(decoded) {
  * Set JWT cookie
  * @param {object} res - Express response object
  * @param {string} token - JWT token
+ * 
+ * Security Note: SameSite=None is used in production because the admin panel
+ * may be served from a different subdomain. The session invalidation on new
+ * login provides additional protection against session hijacking.
+ * For additional CSRF protection, ensure all state-changing requests
+ * validate the Origin/Referer headers.
  */
 function setTokenCookie(res, token) {
   const isProduction = process.env.NODE_ENV === 'production';

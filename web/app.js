@@ -37,8 +37,7 @@ app.set('trust proxy', 1);
 // CORS configuration - must be before other middleware
 const corsOptions = {
   origin: function(origin, callback) {
-    // Allow requests with no origin (mobile apps, curl, etc.)
-    // In production, this should be restricted
+    // Allowed origins list
     const allowedOrigins = [
       'https://flouritebot.store',
       'https://www.flouritebot.store',
@@ -46,15 +45,27 @@ const corsOptions = {
       'http://127.0.0.1:4100'
     ];
     
-    if (!origin || allowedOrigins.includes(origin)) {
+    // Allow requests with no origin (same-origin requests, mobile apps, curl)
+    if (!origin) {
       callback(null, true);
-    } else if (process.env.NODE_ENV !== 'production') {
-      // In development, allow all origins
-      callback(null, true);
-    } else {
-      callback(null, true); // Allow all for now, but log it
-      console.log('CORS request from:', origin);
+      return;
     }
+    
+    // Check if origin is in allowed list
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+    
+    // In development, allow all origins
+    if (process.env.NODE_ENV !== 'production') {
+      callback(null, true);
+      return;
+    }
+    
+    // In production, reject unknown origins
+    console.warn('CORS blocked request from:', origin);
+    callback(new Error('Not allowed by CORS'));
   },
   credentials: true, // Required for cookies
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -118,6 +129,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Stricter rate limit for authentication endpoints - apply BEFORE routes
 app.use('/api/auth/login', strictRateLimit());
+app.use('/api/auth/refresh', strictRateLimit());
 
 // Apply rate limiting to all API routes
 app.use('/api/', apiRateLimit());

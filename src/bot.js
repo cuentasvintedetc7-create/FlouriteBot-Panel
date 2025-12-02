@@ -2,6 +2,7 @@ const { Telegraf } = require('telegraf');
 const config = require('../config.json');
 const auth = require('./utils/auth');
 const { mainMenu, mainMenuInline } = require('./keyboards/mainMenu');
+const { antiSpamMiddleware } = require('./utils/antispam');
 
 // Import handlers
 const { setupLoginHandler } = require('./handlers/login');
@@ -14,6 +15,9 @@ const { setupTopupHandler } = require('./handlers/topup');
 // Create bot instance - prefer environment variable over config file
 const botToken = process.env.BOT_TOKEN || config.botToken;
 const bot = new Telegraf(botToken);
+
+// Anti-spam middleware - max 1 action per 500ms per user
+bot.use(antiSpamMiddleware(500));
 
 // Auth middleware - check if user is logged in
 bot.use((ctx, next) => {

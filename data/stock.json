@@ -1,9 +1,42 @@
 {
   "Free Fire iOS": {
     "FLOURITE": {
-      "1day": [],
-      "7days": [],
-      "30days": []
+      "1day": [
+        "S1D6SW9NRSGL6TK1",
+        "8HLCBHYJ12FA6TK1",
+        "WNMCEIM04CRP6TK1",
+        "5ANZ3H3KL8YS6TK1",
+        "USJB09MB07IL6TK1",
+        "KSAM4OEL9TX06TK1",
+        "Z4N8QEIL1A0Q6TK1",
+        "ACE1AA9CRXQL6TK1",
+        "V156UU25UEGF6TK1",
+        "DDOUZKYQN87Y6TK1",
+        "H7K1LUZEM0I26TK1",
+        "ACNQTTG5KN6B6TK1",
+        "YBAWI7DOOHM46TK1",
+        "KUTRRM1U27O86TK1",
+        "H2STJY7NKJDY6TK1",
+        "FL60T0LPOO6L6TK1",
+        "I5IR0391M9H36TK1",
+        "2F810A1KTAN16TK1",
+        "AEL10ARRHON66TK1",
+        "5YJFF9WGAVFM6TK1"
+      ],
+      "7days": [
+        "NHQE8JBALXA36TK1",
+        "QACHFIQSQJOG6TK1",
+        "XL5MI9USM1AS6TK1",
+        "447L5Q6TCUY46TK1",
+        "V6W9C8U1BPC36TK1",
+        "UIGA6EKI60GP6TK1",
+        "UWTU5PA1QBNN6TK1"
+      ],
+      "30days": [
+        "C35G89541ZZ86TK1",
+        "CMVTHFCG56GZ6TK1",
+        "J5I6GS0ZUXQT6TK1"
+      ]
     }
   },
   "GBOX": {
@@ -13,9 +46,32 @@
   },
   "COD Mobile": {
     "Call Of Duty": {
-      "1day": [],
-      "7days": [],
-      "30days": []
+      "1day": [
+        "COD-4QVYWJGY-6TK1",
+        "COD-YM5WNN4U-6TK1",
+        "COD-GF9RHZPZ-6TK1"
+      ],
+      "7days": [
+        "COD-7UKQ6C5N-6TK1",
+        "COD-DDHC9SHZ-6TK1",
+        "COD-NMVJNKPH-6TK1",
+        "COD-0JE18WAR-6TK1",
+        "COD-C0TKYFEI-6TK1",
+        "COD-L31DHC8O-6TK1",
+        "COD-MDCAGLIV-6TK1",
+        "COD-OXSDY2Q1-6TK1",
+        "COD-YJNU7EWH-6TK1",
+        "COD-VUVS594C-6TK1"
+      ],
+      "30days": [
+        "COD-E4Z7B1M4-6TK1",
+        "COD-I8J4U6R4-6TK1",
+        "COD-GV6BZJ8D-6TK1",
+        "COD-D7306CL8-6TK1",
+        "COD-GF2Q76Y0-6TK1",
+        "COD-GX1Q3AWI-6TK1",
+        "COD-62XANQHQ-6TK1"
+      ]
     }
   }
 }

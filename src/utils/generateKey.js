@@ -15,18 +15,16 @@ function generateFlouriteKey() {
   return key + timestamp;
 }
 
-// Generate Certificate key for Gbox: format CERT-XXXXXXXX-XXXX
+// Generate Certificate key for Gbox: EXACTLY 10 hex characters (e.g., 17E21A4A78)
 function generateCertificateKey() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let part1 = '';
+  const hexChars = '0123456789ABCDEF';
+  let key = '';
   
-  for (let i = 0; i < 8; i++) {
-    part1 += chars.charAt(Math.floor(Math.random() * chars.length));
+  for (let i = 0; i < 10; i++) {
+    key += hexChars.charAt(Math.floor(Math.random() * hexChars.length));
   }
   
-  const timestamp = Date.now().toString(36).toUpperCase().slice(-4);
-  
-  return `CERT-${part1}-${timestamp}`;
+  return key;
 }
 
 // Generate Call Of Duty key: format COD-XXXXXXXX-XXXX
@@ -45,16 +43,21 @@ function generateCallOfDutyKey() {
 
 // Generate key based on product name
 function generateKey(productName) {
-  switch (productName) {
-    case 'Flourite':
-      return generateFlouriteKey();
-    case 'Certificate':
-      return generateCertificateKey();
-    case 'Call Of Duty':
-      return generateCallOfDutyKey();
-    default:
-      return generateFlouriteKey();
+  // Normalize product name for comparison
+  const normalizedName = productName.toLowerCase().trim();
+  
+  if (normalizedName === 'flourite' || normalizedName === 'freefire' || normalizedName === 'free fire ios') {
+    return generateFlouriteKey();
   }
+  if (normalizedName === 'certificate' || normalizedName === 'gbox' || normalizedName === 'gbox certificate') {
+    return generateCertificateKey();
+  }
+  if (normalizedName === 'call of duty' || normalizedName === 'cod' || normalizedName === 'cod mobile') {
+    return generateCallOfDutyKey();
+  }
+  
+  // Default to Flourite
+  return generateFlouriteKey();
 }
 
 // Generate multiple keys with uniqueness check

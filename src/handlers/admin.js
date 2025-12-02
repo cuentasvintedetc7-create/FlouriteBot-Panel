@@ -4,7 +4,7 @@ const db = require('../utils/db');
 const products = require('../../data/products.json');
 const { formatBalance, formatPrice, formatStockSummary, formatDate, getProductName, getCategoryName, categoryNames } = require('../utils/format');
 const { generateKeys } = require('../utils/generateKey');
-const { adminPanelMenu } = require('../keyboards/mainMenu');
+const { adminPanelMenu, stockManagementMenu } = require('../keyboards/mainMenu');
 
 function setupAdminHandler(bot) {
   // Admin command - show panel with inline buttons
@@ -56,19 +56,118 @@ function setupAdminHandler(bot) {
       return ctx.answerCbQuery('❌ Not authorized');
     }
     
+    return ctx.editMessageText(
+      `📦 *STOCK MANAGEMENT*\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n` +
+      `Select an option to manage stock:`,
+      {
+        parse_mode: 'Markdown',
+        ...stockManagementMenu()
+      }
+    );
+  });
+  
+  // View Stock action
+  bot.action('admin_view_stock', (ctx) => {
+    if (!auth.isAdmin(ctx.from.id)) {
+      return ctx.answerCbQuery('❌ Not authorized');
+    }
+    
     const stock = db.getStock();
     const summary = formatStockSummary(stock);
     
     return ctx.editMessageText(
-      `📦 *MANAGE STOCK*\n\n` +
-      summary + `\n` +
-      `Commands:\n` +
-      `/createstock PRODUCT KEYTYPE DURATION AMOUNT`,
+      `👁️ *VIEW STOCK*\n\n` +
+      summary,
       {
         parse_mode: 'Markdown',
         reply_markup: {
           inline_keyboard: [
-            [Markup.button.callback('⬅️ Back to Admin', 'back_admin')]
+            [Markup.button.callback('🔄 Refresh', 'admin_view_stock')],
+            [Markup.button.callback('⬅️ Back to Stock Menu', 'admin_stock')]
+          ]
+        }
+      }
+    );
+  });
+  
+  // Add Stock action
+  bot.action('admin_add_stock', (ctx) => {
+    if (!auth.isAdmin(ctx.from.id)) {
+      return ctx.answerCbQuery('❌ Not authorized');
+    }
+    
+    // Build help message dynamically from products.json
+    let helpMsg = `➕ *ADD STOCK*\n\n`;
+    helpMsg += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    helpMsg += `Use: /addstock CATEGORY DURATION AMOUNT\n\n`;
+    helpMsg += `*Available Categories & Durations:*\n`;
+    
+    for (const [key, prod] of Object.entries(products.products)) {
+      const durations = Object.keys(prod.durations).join(', ');
+      helpMsg += `• ${key} → (${durations})\n`;
+    }
+    
+    helpMsg += `\n*Examples:*\n`;
+    helpMsg += `\`/addstock freefire 1day 10\`\n`;
+    helpMsg += `\`/addstock gbox 1year 5\`\n`;
+    helpMsg += `\`/addstock cod 30days 10\``;
+    
+    return ctx.editMessageText(helpMsg, {
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [Markup.button.callback('⬅️ Back to Stock Menu', 'admin_stock')]
+        ]
+      }
+    });
+  });
+  
+  // Remove Stock action
+  bot.action('admin_remove_stock', (ctx) => {
+    if (!auth.isAdmin(ctx.from.id)) {
+      return ctx.answerCbQuery('❌ Not authorized');
+    }
+    
+    return ctx.editMessageText(
+      `➖ *REMOVE STOCK*\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `Use: /removestock CATEGORY DURATION AMOUNT\n\n` +
+      `*Example:*\n` +
+      `\`/removestock freefire 1day 5\`\n` +
+      `\`/removestock cod 7days 2\``,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [Markup.button.callback('⬅️ Back to Stock Menu', 'admin_stock')]
+          ]
+        }
+      }
+    );
+  });
+  
+  // Clear Stock action
+  bot.action('admin_clear_stock', (ctx) => {
+    if (!auth.isAdmin(ctx.from.id)) {
+      return ctx.answerCbQuery('❌ Not authorized');
+    }
+    
+    return ctx.editMessageText(
+      `🗑️ *CLEAR STOCK*\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `⚠️ *WARNING:* This action will delete all stock for a category/duration.\n\n` +
+      `Use: /clearstock CATEGORY DURATION\n\n` +
+      `*Example:*\n` +
+      `\`/clearstock freefire 1day\`\n` +
+      `\`/clearstock gbox 1year\`\n\n` +
+      `To clear ALL stock for a category:\n` +
+      `\`/clearstock freefire all\``,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [Markup.button.callback('⬅️ Back to Stock Menu', 'admin_stock')]
           ]
         }
       }
@@ -795,6 +894,196 @@ function setupAdminHandler(bot) {
       `⏱️ Duration: ${duration}\n` +
       `📊 Amount: ${amount} keys\n\n` +
       `Keys generated and added to stock.`,
+      { parse_mode: 'Markdown' }
+    );
+  });
+  
+  // Add stock command (alias for createstock)
+  bot.command('addstock', (ctx) => {
+    if (!auth.isAdmin(ctx.from.id)) {
+      return ctx.reply('❌ You are not authorized to use admin commands.');
+    }
+    
+    const args = ctx.message.text.split(' ').slice(1);
+    
+    if (args.length < 3) {
+      let helpMsg = '❌ Usage: /addstock CATEGORY DURATION AMOUNT\n\n';
+      helpMsg += '*Available Categories & Products:*\n';
+      
+      for (const [key, prod] of Object.entries(products.products)) {
+        const durations = Object.keys(prod.durations).join(', ');
+        helpMsg += `• ${key} → ${getProductName(key)} (${durations})\n`;
+      }
+      
+      helpMsg += '\n*Examples:*\n';
+      helpMsg += '`/addstock freefire 1day 10`\n';
+      helpMsg += '`/addstock gbox 1year 5`\n';
+      helpMsg += '`/addstock cod 30days 10`';
+      
+      return ctx.reply(helpMsg, { parse_mode: 'Markdown' });
+    }
+    
+    const categoryKey = args[0].toLowerCase();
+    const duration = args[1];
+    const amount = parseInt(args[2]);
+    
+    // Validate category
+    const validCategories = Object.keys(products.products);
+    if (!validCategories.includes(categoryKey)) {
+      return ctx.reply(`❌ Invalid category. Valid: ${validCategories.join(', ')}`);
+    }
+    
+    const productConfig = products.products[categoryKey];
+    
+    // Validate duration
+    if (!productConfig.durations[duration]) {
+      const validDurations = Object.keys(productConfig.durations).join(', ');
+      return ctx.reply(`❌ Invalid duration for ${categoryKey}. Valid durations: ${validDurations}`);
+    }
+    
+    if (isNaN(amount) || amount <= 0) {
+      return ctx.reply('❌ Invalid amount. Please provide a positive number.');
+    }
+    
+    // Get category and product names using shared mappings
+    const categoryName = getCategoryName(categoryKey);
+    const productName = getProductName(categoryKey);
+    
+    // Generate keys
+    const keys = generateKeys(productName, amount);
+    
+    // Add to stock (use categoryName for stock.json path)
+    db.addToStock(categoryName, productName, duration, keys);
+    
+    return ctx.reply(
+      `✅ *Stock Added*\n\n` +
+      `📂 Category: ${categoryName}\n` +
+      `📦 Product: ${productName}\n` +
+      `⏱️ Duration: ${duration}\n` +
+      `📊 Amount: ${amount} keys\n\n` +
+      `Keys generated and added to stock.`,
+      { parse_mode: 'Markdown' }
+    );
+  });
+  
+  // Remove stock command
+  bot.command('removestock', (ctx) => {
+    if (!auth.isAdmin(ctx.from.id)) {
+      return ctx.reply('❌ You are not authorized to use admin commands.');
+    }
+    
+    const args = ctx.message.text.split(' ').slice(1);
+    
+    if (args.length < 3) {
+      let helpMsg = '❌ Usage: /removestock CATEGORY DURATION AMOUNT\n\n';
+      helpMsg += '*Available Categories:*\n';
+      
+      for (const [key, prod] of Object.entries(products.products)) {
+        const durations = Object.keys(prod.durations).join(', ');
+        helpMsg += `• ${key} (${durations})\n`;
+      }
+      
+      helpMsg += '\n*Example:*\n`/removestock freefire 1day 5`';
+      
+      return ctx.reply(helpMsg, { parse_mode: 'Markdown' });
+    }
+    
+    const categoryKey = args[0].toLowerCase();
+    const duration = args[1];
+    const amount = parseInt(args[2]);
+    
+    // Validate category
+    const validCategories = Object.keys(products.products);
+    if (!validCategories.includes(categoryKey)) {
+      return ctx.reply(`❌ Invalid category. Valid: ${validCategories.join(', ')}`);
+    }
+    
+    const productConfig = products.products[categoryKey];
+    
+    // Validate duration
+    if (!productConfig.durations[duration]) {
+      const validDurations = Object.keys(productConfig.durations).join(', ');
+      return ctx.reply(`❌ Invalid duration for ${categoryKey}. Valid durations: ${validDurations}`);
+    }
+    
+    if (isNaN(amount) || amount <= 0) {
+      return ctx.reply('❌ Invalid amount. Please provide a positive number.');
+    }
+    
+    // Get category and product names using shared mappings
+    const categoryName = getCategoryName(categoryKey);
+    const productName = getProductName(categoryKey);
+    
+    // Remove from stock
+    const result = db.removeFromStock(categoryName, productName, duration, amount);
+    
+    return ctx.reply(
+      `✅ *Stock Removed*\n\n` +
+      `📂 Category: ${categoryName}\n` +
+      `📦 Product: ${productName}\n` +
+      `⏱️ Duration: ${duration}\n` +
+      `➖ Removed: ${result.removed} keys\n` +
+      `📊 Remaining: ${result.remaining} keys`,
+      { parse_mode: 'Markdown' }
+    );
+  });
+  
+  // Clear stock command
+  bot.command('clearstock', (ctx) => {
+    if (!auth.isAdmin(ctx.from.id)) {
+      return ctx.reply('❌ You are not authorized to use admin commands.');
+    }
+    
+    const args = ctx.message.text.split(' ').slice(1);
+    
+    if (args.length < 2) {
+      let helpMsg = '❌ Usage: /clearstock CATEGORY DURATION\n\n';
+      helpMsg += '*Available Categories:*\n';
+      
+      for (const [key, prod] of Object.entries(products.products)) {
+        const durations = Object.keys(prod.durations).join(', ');
+        helpMsg += `• ${key} (${durations})\n`;
+      }
+      
+      helpMsg += '\n*Examples:*\n';
+      helpMsg += '`/clearstock freefire 1day` - Clear specific duration\n';
+      helpMsg += '`/clearstock freefire all` - Clear ALL durations';
+      
+      return ctx.reply(helpMsg, { parse_mode: 'Markdown' });
+    }
+    
+    const categoryKey = args[0].toLowerCase();
+    const duration = args[1].toLowerCase();
+    
+    // Validate category
+    const validCategories = Object.keys(products.products);
+    if (!validCategories.includes(categoryKey)) {
+      return ctx.reply(`❌ Invalid category. Valid: ${validCategories.join(', ')}`);
+    }
+    
+    const productConfig = products.products[categoryKey];
+    
+    // Validate duration (unless "all")
+    if (duration !== 'all' && !productConfig.durations[duration]) {
+      const validDurations = Object.keys(productConfig.durations).join(', ');
+      return ctx.reply(`❌ Invalid duration for ${categoryKey}. Valid durations: ${validDurations}, all`);
+    }
+    
+    // Get category and product names using shared mappings
+    const categoryName = getCategoryName(categoryKey);
+    const productName = getProductName(categoryKey);
+    
+    // Clear stock
+    const result = db.clearStock(categoryName, productName, duration);
+    
+    const durationText = duration === 'all' ? 'ALL durations' : duration;
+    
+    return ctx.reply(
+      `🗑️ *Stock Cleared*\n\n` +
+      `📂 Category: ${categoryName}\n` +
+      `📦 Product: ${productName}\n` +
+      `⏱️ Duration: ${durationText}\n` +
+      `🗑️ Cleared: ${result.cleared} keys`,
       { parse_mode: 'Markdown' }
     );
   });

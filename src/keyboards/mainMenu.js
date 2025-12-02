@@ -35,8 +35,20 @@ function adminPanelMenu() {
   ]);
 }
 
+// Stock management menu for admin panel
+function stockManagementMenu() {
+  return Markup.inlineKeyboard([
+    [Markup.button.callback('👁️ View Stock', 'admin_view_stock')],
+    [Markup.button.callback('➕ Add Stock', 'admin_add_stock')],
+    [Markup.button.callback('➖ Remove Stock', 'admin_remove_stock')],
+    [Markup.button.callback('🗑️ Clear Stock', 'admin_clear_stock')],
+    [Markup.button.callback('⬅️ Back to Admin', 'back_admin')]
+  ]);
+}
+
 module.exports = {
   mainMenu,
   mainMenuInline,
-  adminPanelMenu
+  adminPanelMenu,
+  stockManagementMenu
 };

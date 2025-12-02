@@ -3,9 +3,10 @@
     "id": 1,
     "username": "admin",
     "password": "admin123",
-    "balance": 1000,
+    "balance": 0,
     "telegramId": null,
     "isAdmin": true,
+    "role": "admin",
     "createdAt": "2024-01-01T00:00:00.000Z"
   },
   {
@@ -15,6 +16,7 @@
     "balance": 50,
     "telegramId": null,
     "isAdmin": false,
+    "role": "user",
     "createdAt": "2024-01-01T00:00:00.000Z"
   }
 ]

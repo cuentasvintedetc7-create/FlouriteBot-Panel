@@ -2,7 +2,7 @@ const { Markup } = require('telegraf');
 const auth = require('../utils/auth');
 const db = require('../utils/db');
 const products = require('../../data/products.json');
-const { formatBalance, formatPrice, formatStockSummary, formatDate, getProductName } = require('../utils/format');
+const { formatBalance, formatPrice, formatStockSummary, formatDate, getProductName, getCategoryName, categoryNames } = require('../utils/format');
 const { generateKeys } = require('../utils/generateKey');
 const { adminPanelMenu } = require('../keyboards/mainMenu');
 
@@ -778,18 +778,19 @@ function setupAdminHandler(bot) {
       return ctx.reply('❌ Invalid amount. Please provide a positive number.');
     }
     
-    // Get product name using shared mapping
+    // Get category and product names using shared mappings
+    const categoryName = getCategoryName(categoryKey);
     const productName = getProductName(categoryKey);
     
     // Generate keys
     const keys = generateKeys(productName, amount);
     
-    // Add to stock
-    db.addToStock(categoryKey, productName, duration, keys);
+    // Add to stock (use categoryName for stock.json path)
+    db.addToStock(categoryName, productName, duration, keys);
     
     return ctx.reply(
       `✅ *Stock Created*\n\n` +
-      `📂 Category: ${productConfig.name}\n` +
+      `📂 Category: ${categoryName}\n` +
       `📦 Product: ${productName}\n` +
       `⏱️ Duration: ${duration}\n` +
       `📊 Amount: ${amount} keys\n\n` +

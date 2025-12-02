@@ -4,7 +4,7 @@ const products = require('../../data/products.json');
 const { buyMenu } = require('../keyboards/buyMenu');
 const { productMenu, durationMenu } = require('../keyboards/productMenu');
 const { mainMenuInline } = require('../keyboards/mainMenu');
-const { formatBalance, formatPrice, formatDuration, getProductName, getProductDisplayName } = require('../utils/format');
+const { formatBalance, formatPrice, formatDuration, getProductName, getCategoryName, getProductDisplayName } = require('../utils/format');
 const { generateKey } = require('../utils/generateKey');
 
 function setupBuyHandler(bot) {
@@ -129,16 +129,17 @@ function setupBuyHandler(bot) {
     const price = productConfig.durations[duration];
     const user = auth.getLoggedInUser(ctx.from.id);
     
-    // Get product name using shared mapping
+    // Get category and product names using shared mappings
+    const categoryName = getCategoryName(categoryKey);
     const productName = getProductName(categoryKey);
     
-    const stock = db.getStockCount(categoryKey, productName, duration);
+    const stock = db.getStockCount(categoryName, productName, duration);
     
     // Store purchase info in session
     auth.setLoginSession(ctx.from.id, {
       pendingPurchase: {
         categoryKey,
-        categoryName: productConfig.name,
+        categoryName,
         productName,
         duration,
         originalPrice: price
@@ -148,7 +149,7 @@ function setupBuyHandler(bot) {
     return ctx.editMessageText(
       `🛒 *CONFIRM PURCHASE*\n\n` +
       `━━━━━━━━━━━━━━━━━━━━━\n` +
-      `📂 Category: *${productConfig.name}*\n` +
+      `📂 Category: *${categoryName}*\n` +
       `📦 Product: *${productName}*\n` +
       `⏱️ Duration: *${formatDuration(duration)}*\n` +
       `💰 Price: *${formatPrice(price)}*\n` +
@@ -212,7 +213,7 @@ function setupBuyHandler(bot) {
     
     const { categoryKey, categoryName, productName, duration, originalPrice } = session.pendingPurchase;
     const user = auth.getLoggedInUser(ctx.from.id);
-    const stock = db.getStockCount(categoryKey, productName, duration);
+    const stock = db.getStockCount(categoryName, productName, duration);
     
     // Clear promo step
     auth.setLoginSession(ctx.from.id, { 
@@ -265,8 +266,8 @@ function setupBuyHandler(bot) {
       return ctx.answerCbQuery(`❌ Insufficient balance! You need ${formatBalance(finalPrice)}`, { show_alert: true });
     }
     
-    // Try to get key from stock
-    let key = db.takeFromStock(categoryKey, productName, duration);
+    // Try to get key from stock (use categoryName for stock.json path)
+    let key = db.takeFromStock(categoryName, productName, duration);
     
     // If no stock, generate new key
     if (!key) {

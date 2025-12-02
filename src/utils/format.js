@@ -43,9 +43,21 @@ const productNames = {
   cod: 'Call Of Duty'
 };
 
+// Category name mappings - for stock.json
+const categoryNames = {
+  freefire: 'Free Fire (iOS)',
+  gbox: 'Gbox',
+  cod: 'COD Mobile'
+};
+
 // Get product name from category key
 function getProductName(categoryKey) {
   return productNames[categoryKey] || categoryKey;
+}
+
+// Get category name from category key (for stock.json)
+function getCategoryName(categoryKey) {
+  return categoryNames[categoryKey] || categoryKey;
 }
 
 // Get display name for product (uppercase)
@@ -110,6 +122,8 @@ module.exports = {
   formatTopup,
   formatStockSummary,
   getProductName,
+  getCategoryName,
   getProductDisplayName,
-  productNames
+  productNames,
+  categoryNames
 };

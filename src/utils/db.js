@@ -216,12 +216,12 @@ function addResetLog(telegramId, username, key) {
 }
 
 // Enhanced topup functions for payment proof system
-function addTopupRequest(login, telegramId, phone, method, proof) {
+function addTopupRequest(username, telegramId, phone, method, proof) {
   const topups = getTopups();
   const maxId = topups.length > 0 ? Math.max(...topups.map(t => t.id || 0)) : 0;
   const newTopup = {
     id: maxId + 1,
-    login,
+    username,
     telegramId,
     phone: phone || null,
     method,

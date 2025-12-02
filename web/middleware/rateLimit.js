@@ -73,11 +73,12 @@ function rateLimit(options = {}) {
 
 /**
  * Strict rate limit for sensitive operations (login, etc.)
+ * Increased to 10 attempts per minute to avoid blocking valid users
  */
 function strictRateLimit() {
   return rateLimit({
     windowMs: 60 * 1000, // 1 minute
-    max: 5, // 5 attempts per minute
+    max: 10, // 10 attempts per minute (more lenient)
     message: 'Too many attempts. Please wait before trying again.'
   });
 }

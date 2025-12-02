@@ -86,16 +86,16 @@ function formatDate(dateStr) {
 
 // Check authentication
 async function checkAuth() {
-  if (!API.token) {
-    showLogin();
-    return false;
-  }
-  
+  // First try to check if we have a valid session (via cookie)
   const result = await API.auth.me();
   
   if (result.success) {
     headerUsername.textContent = result.user.username;
     showDashboard();
+    // Start session refresh timer
+    if (window.startSessionRefresh) {
+      window.startSessionRefresh();
+    }
     return true;
   } else {
     API.setToken(null);
@@ -108,6 +108,10 @@ async function checkAuth() {
 function showLogin() {
   loginScreen.style.display = 'flex';
   dashboard.style.display = 'none';
+  // Stop session refresh timer
+  if (window.stopSessionRefresh) {
+    window.stopSessionRefresh();
+  }
 }
 
 // Show dashboard
@@ -115,6 +119,10 @@ function showDashboard() {
   loginScreen.style.display = 'none';
   dashboard.style.display = 'flex';
   loadPage('dashboard');
+  // Start session refresh timer
+  if (window.startSessionRefresh) {
+    window.startSessionRefresh();
+  }
 }
 
 // Login handler
@@ -849,3 +857,9 @@ document.getElementById('user-search').addEventListener('input', (e) => {
 
 // Initialize
 checkAuth();
+
+// Listen for session expired events
+window.addEventListener('session-expired', () => {
+  showToast('Session expired. Please login again.', 'warning');
+  showLogin();
+});

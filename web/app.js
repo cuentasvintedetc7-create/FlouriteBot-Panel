@@ -156,7 +156,7 @@ app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'ok', 
     timestamp: new Date().toISOString(),
-    port: process.env.PORT || 4100
+    port: process.env.PORT || process.env.WEB_PORT || 4100
   });
 });
 

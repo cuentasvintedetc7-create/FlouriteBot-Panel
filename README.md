@@ -1,13 +1,26 @@
 # FlouriteBot-Panel
 
-A complete Telegram bot for key management built with Node.js and Telegraf.
+A complete Telegram bot for key management with Web Admin Panel, built with Node.js, Telegraf, and Express.
+
+## ✨ Features
+
+- **Telegram Bot** - Full-featured key management bot
+- **Web Admin Panel** - Modern dark-themed admin interface
+- **User Management** - Create, edit, delete users with roles
+- **Stock Management** - Add, remove, clear stock with auto key generation
+- **Purchase Tracking** - Complete purchase history
+- **Top-up System** - Payment proof upload and approval workflow
+- **Promo Codes** - Create percentage or fixed discount codes
+- **Key Reset** - Reset purchased keys (except GBOX)
+- **Anti-spam** - Rate limiting protection
+- **Logging** - Structured logging with rotation
 
 ## 📁 Project Structure
 
 ```
 project/
 ├── package.json          # Dependencies and scripts
-├── server.js             # Entry point
+├── server.js             # Entry point (Bot + Web)
 ├── config.json           # Bot configuration
 ├── README.md             # Documentation
 ├── src/
@@ -17,24 +30,40 @@ project/
 │   │   ├── buy.js        # Purchase handlers
 │   │   ├── account.js    # Account management handlers
 │   │   ├── reset.js      # Key reset handlers
-│   │   └── admin.js      # Admin command handlers
+│   │   ├── admin.js      # Admin command handlers
+│   │   └── topup.js      # Top-up handlers
 │   ├── keyboards/
 │   │   ├── mainMenu.js   # Main menu keyboard
 │   │   ├── buyMenu.js    # Buy menu keyboard
 │   │   ├── productMenu.js# Product selection keyboard
-│   │   ├── keyTypeMenu.js# Key type selection keyboard
 │   │   └── accountMenu.js# Account menu keyboard
 │   └── utils/
 │       ├── generateKey.js# Key generation utilities
 │       ├── db.js         # Database operations (JSON)
 │       ├── auth.js       # Authentication utilities
-│       └── format.js     # Formatting utilities
+│       ├── format.js     # Formatting utilities
+│       ├── validators.js # Input validation
+│       ├── antispam.js   # Rate limiting
+│       └── logger.js     # Logging utility
+├── web/
+│   ├── app.js            # Express server
+│   ├── middleware/
+│   │   └── auth.js       # JWT authentication
+│   ├── routes/           # API routes
+│   ├── public/           # Frontend files
+│   │   ├── index.html
+│   │   ├── css/styles.css
+│   │   └── js/
+│   └── nginx.conf.example# NGINX configuration
 └── data/
     ├── users.json        # User data
     ├── stock.json        # Key stock
+    ├── products.json     # Products configuration
     ├── purchases.json    # Purchase history
     ├── topups.json       # Top-up history
-    └── reset_log.json    # Reset log
+    ├── promo_codes.json  # Promo codes
+    ├── reset_log.json    # Reset log
+    └── logs/             # Application logs
 ```
 
 ## 🚀 Installation
@@ -68,6 +97,40 @@ npm install
 npm run dev
 ```
 
+## 🌐 Web Admin Panel
+
+The web admin panel is available at `http://localhost:3000` (or your configured port).
+
+**Default credentials:**
+- Username: `admin`
+- Password: `admin123`
+
+### Features:
+- Dashboard with statistics
+- User management (CRUD)
+- Stock management (view, add, remove, clear)
+- Purchase history
+- Top-up approval/rejection
+- Key reset history
+- Promo code management
+- System logs viewer
+
+### NGINX Setup (Production):
+
+1. Copy the example config:
+```bash
+sudo cp web/nginx.conf.example /etc/nginx/sites-available/flouritebot
+```
+
+2. Edit the configuration with your domain
+
+3. Enable the site:
+```bash
+sudo ln -s /etc/nginx/sites-available/flouritebot /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
 ## 🤖 Bot Commands
 
 ### User Commands:
@@ -76,108 +139,97 @@ npm run dev
 - `/logout` - Logout from your account
 - `/buy` - Browse and purchase keys
 - `/account` - View account information
-- `/reset KEY` - Reset a key
+- `/reset KEY` - Reset a key (Flourite/COD only)
 - `/redeem CODE` - Redeem a promocode
 
-### Admin Commands (Admin ID: 7458257277):
+### Admin Commands:
 - `/admin` - View admin panel
-- `/createuser LOGIN PASSWORD` - Create a new user
-- `/deleteuser LOGIN` - Delete a user
-- `/addbalance LOGIN AMOUNT` - Add balance to user
+- `/createuser USERNAME PASSWORD [ROLE]` - Create a new user
+- `/deleteuser USERNAME` - Delete a user
+- `/addbalance USERNAME AMOUNT` - Add balance to user
+- `/removebalance USERNAME AMOUNT` - Remove balance from user
+- `/setrole USERNAME ROLE` - Set user role
 - `/stock` - View stock summary
-- `/createstock PRODUCT KEYTYPE DURATION AMOUNT` - Generate and add keys to stock
+- `/addstock CATEGORY DURATION AMOUNT` - Add keys to stock
+- `/removestock CATEGORY DURATION AMOUNT` - Remove keys from stock
+- `/clearstock CATEGORY DURATION` - Clear stock
+- `/createpromo CODE TYPE AMOUNT [MAX_USES]` - Create promo code
 - `/broadcast MESSAGE` - Send message to all users
 - `/users` - List all users
 
-## 💰 Pricing
+## 💰 Products & Pricing
 
+### FREE FIRE iOS (FLOURITE)
 | Duration | Price |
 |----------|-------|
-| 1 Day    | $2.30 |
+| 1 Day    | $2.50 |
+| 7 Days   | $7.00 |
+| 30 Days  | $14.00|
+
+### GBOX (Certificate)
+| Duration | Price |
+|----------|-------|
+| 1 Year   | $6.00 |
+
+### COD Mobile (Call Of Duty)
+| Duration | Price |
+|----------|-------|
+| 1 Day    | $3.00 |
 | 7 Days   | $10.00|
 | 30 Days  | $18.00|
 
-## 📦 Products
-
-- Free Fire (iOS)
-- Gbox
-- COD (iOS)
-
 ## 🔑 Key Formats
 
-1. **Flourite** - Alphanumeric uppercase (e.g., `FIUNVTFQRR99845F`)
-2. **BRMODS** - Format `👤2v686wkl🔑e8ic`
-3. **DRIP MOBILE** - Numbers (e.g., `4168090123`)
+1. **FLOURITE** - 16 alphanumeric uppercase (e.g., `FIUNVTFQRR99845F`)
+2. **GBOX Certificate** - 10 hex characters (e.g., `17E21A4A78`)
+3. **Call Of Duty** - Format `COD-XXXXXXXX-XXXX`
 
 ## 🔐 Authentication Flow
 
 1. User sends `/login`
-2. Bot asks for LOGIN
-3. User sends their login
-4. Bot asks for PASSWORD
-5. User sends their password
-6. Bot validates and links Telegram account
+2. Bot requests phone number verification
+3. User shares phone number
+4. Bot asks for USERNAME
+5. User sends their username
+6. Bot asks for PASSWORD
+7. User sends their password
+8. Bot validates and links Telegram account
 
 ## 📝 Default Users
 
-The bot comes with two default users:
+| Username | Password | Balance | Role  |
+|----------|----------|---------|-------|
+| admin    | admin123 | $0      | admin |
+| demo     | demo123  | $50     | user  |
 
-| Login | Password | Balance | Admin |
-|-------|----------|---------|-------|
-| admin | admin123 | $1000   | Yes   |
-| demo  | demo123  | $50     | No    |
+## ⚙️ Environment Variables
 
-## ⚙️ Configuration
+```bash
+# Bot Configuration
+BOT_TOKEN="your_bot_token_here"
+ADMIN_ID="your_telegram_id_here"
 
-Edit `config.json` to customize:
+# Web Panel
+WEB_PORT=3000
+JWT_SECRET="your_jwt_secret_here"
+WEB_ADMIN_USER="admin"
+WEB_ADMIN_HASH="bcrypt_hash_of_password"
 
-```json
-{
-  "botToken": "YOUR_BOT_TOKEN",
-  "adminId": YOUR_TELEGRAM_ID,
-  "prices": {
-    "1day": 2.30,
-    "7days": 10,
-    "30days": 18
-  },
-  "products": [
-    "Free Fire (iOS)",
-    "Gbox",
-    "COD (iOS)"
-  ],
-  "keyFormats": [
-    "Flourite",
-    "BRMODS",
-    "DRIP MOBILE"
-  ]
-}
+# Optional
+NODE_ENV=production
+LOG_LEVEL=INFO
 ```
 
 ## 🛡️ Security Notes
 
-⚠️ **Important**: The bot token in this repository is for demonstration purposes. Before deploying to production:
+⚠️ **Important**: Before deploying to production:
 
 1. Create a new bot with [@BotFather](https://t.me/BotFather)
-2. Replace the token in `config.json` OR use environment variables (recommended)
-3. Update the `adminId` to your Telegram user ID
-
-### Using Environment Variables (Recommended)
-
-You can use environment variables instead of storing sensitive data in config.json:
-
-```bash
-# Set environment variables
-export BOT_TOKEN="your_bot_token_here"
-export ADMIN_ID="your_telegram_id_here"
-
-# Then start the bot
-npm start
-```
-
-Or with PM2:
-```bash
-BOT_TOKEN="your_token" ADMIN_ID="your_id" pm2 start server.js --name flouritebot
-```
+2. Use environment variables for sensitive data
+3. Change default admin credentials
+4. Set up HTTPS with SSL certificates
+5. Configure proper CORS settings
+6. Use PM2 or similar for process management
 
 ## 📜 License
 

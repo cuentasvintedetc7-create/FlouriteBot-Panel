@@ -138,6 +138,45 @@ function takeFromStock(product, keyType, duration) {
   return null;
 }
 
+// Remove specific amount from stock
+function removeFromStock(product, keyType, duration, amount) {
+  const stock = getStock();
+  if (stock[product] && stock[product][keyType] && stock[product][keyType][duration]) {
+    const keys = stock[product][keyType][duration];
+    const removeCount = Math.min(amount, keys.length);
+    const removedKeys = keys.splice(0, removeCount);
+    saveStock(stock);
+    return { removed: removedKeys.length, remaining: keys.length };
+  }
+  return { removed: 0, remaining: 0 };
+}
+
+// Clear all stock for a specific category/duration or entire category
+function clearStock(product, keyType, duration = null) {
+  const stock = getStock();
+  
+  if (!stock[product] || !stock[product][keyType]) {
+    return { cleared: 0 };
+  }
+  
+  let cleared = 0;
+  
+  if (duration === 'all' || duration === null) {
+    // Clear all durations
+    for (const dur of Object.keys(stock[product][keyType])) {
+      cleared += stock[product][keyType][dur].length;
+      stock[product][keyType][dur] = [];
+    }
+  } else if (stock[product][keyType][duration]) {
+    // Clear specific duration
+    cleared = stock[product][keyType][duration].length;
+    stock[product][keyType][duration] = [];
+  }
+  
+  saveStock(stock);
+  return { cleared };
+}
+
 // Purchases functions
 function getPurchases() {
   return readJSON('purchases.json') || [];
@@ -203,13 +242,15 @@ function saveResetLog(log) {
   return writeJSON('reset_log.json', log);
 }
 
-function addResetLog(telegramId, username, key) {
+function addResetLog(telegramId, username, key, metadata = {}) {
   const log = getResetLog();
+  const maxId = log.length > 0 ? Math.max(...log.map(l => l.id || 0)) : 0;
   log.push({
-    id: log.length + 1,
+    id: maxId + 1,
     telegramId,
     username,
     key,
+    ...metadata,
     date: new Date().toISOString()
   });
   return saveResetLog(log);
@@ -403,6 +444,8 @@ module.exports = {
   getStockCount,
   addToStock,
   takeFromStock,
+  removeFromStock,
+  clearStock,
   // Purchases
   getPurchases,
   savePurchases,

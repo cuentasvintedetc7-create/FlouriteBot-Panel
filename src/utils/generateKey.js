@@ -1,7 +1,12 @@
 // Set to track generated keys for uniqueness within session
 const generatedKeys = new Set();
 
-// Generate Flourite key: Alphanumeric uppercase (e.g., FIUNVTFQRR99845F)
+/**
+ * Generate Flourite key: Alphanumeric uppercase
+ * Format: 16 characters (12 random + 4 timestamp)
+ * Example: FIUNVTFQRR99845F
+ * @returns {string} Generated key
+ */
 function generateFlouriteKey() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let key = '';
@@ -15,21 +20,33 @@ function generateFlouriteKey() {
   return key + timestamp;
 }
 
-// Generate Certificate key for Gbox: format CERT-XXXXXXXX-XXXX
+/**
+ * Generate Certificate key for GBOX
+ * Format: EXACTLY 10 hexadecimal characters
+ * Example: 17E21A4A78
+ * 
+ * NOTE: This format was changed from the previous CERT-XXXXXXXX-XXXX format
+ * to match the GBOX system requirement of 10 hex character keys.
+ * 
+ * @returns {string} Generated 10-character hex key
+ */
 function generateCertificateKey() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let part1 = '';
+  const hexChars = '0123456789ABCDEF';
+  let key = '';
   
-  for (let i = 0; i < 8; i++) {
-    part1 += chars.charAt(Math.floor(Math.random() * chars.length));
+  for (let i = 0; i < 10; i++) {
+    key += hexChars.charAt(Math.floor(Math.random() * hexChars.length));
   }
   
-  const timestamp = Date.now().toString(36).toUpperCase().slice(-4);
-  
-  return `CERT-${part1}-${timestamp}`;
+  return key;
 }
 
-// Generate Call Of Duty key: format COD-XXXXXXXX-XXXX
+/**
+ * Generate Call Of Duty key
+ * Format: COD-XXXXXXXX-XXXX
+ * Example: COD-A1B2C3D4-E5F6
+ * @returns {string} Generated key
+ */
 function generateCallOfDutyKey() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let part1 = '';
@@ -45,16 +62,21 @@ function generateCallOfDutyKey() {
 
 // Generate key based on product name
 function generateKey(productName) {
-  switch (productName) {
-    case 'Flourite':
-      return generateFlouriteKey();
-    case 'Certificate':
-      return generateCertificateKey();
-    case 'Call Of Duty':
-      return generateCallOfDutyKey();
-    default:
-      return generateFlouriteKey();
+  // Normalize product name for comparison
+  const normalizedName = productName.toLowerCase().trim();
+  
+  if (normalizedName === 'flourite' || normalizedName === 'freefire' || normalizedName === 'free fire ios') {
+    return generateFlouriteKey();
   }
+  if (normalizedName === 'certificate' || normalizedName === 'gbox' || normalizedName === 'gbox certificate') {
+    return generateCertificateKey();
+  }
+  if (normalizedName === 'call of duty' || normalizedName === 'cod' || normalizedName === 'cod mobile') {
+    return generateCallOfDutyKey();
+  }
+  
+  // Default to Flourite
+  return generateFlouriteKey();
 }
 
 // Generate multiple keys with uniqueness check

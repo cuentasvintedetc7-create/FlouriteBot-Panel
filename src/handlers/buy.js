@@ -99,6 +99,9 @@ function setupBuyHandler(bot) {
     // Get display name using shared mapping
     const displayName = getProductDisplayName(categoryKey);
     
+    // Check if user is reseller to show stock info
+    const isReseller = auth.isReseller(ctx.from.id);
+    
     return ctx.editMessageText(
       `📦 *${displayName}*\n\n` +
       `━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -107,9 +110,14 @@ function setupBuyHandler(bot) {
       `Select duration:`,
       {
         parse_mode: 'Markdown',
-        ...durationMenu(categoryKey)
+        ...durationMenu(categoryKey, isReseller)
       }
     );
+  });
+  
+  // Handle out of stock selection
+  bot.action(/^no_stock_(freefire|gbox|cod)_(.+)$/, (ctx) => {
+    return ctx.answerCbQuery('❌ This duration is out of stock', { show_alert: true });
   });
   
   // Duration selection - show confirmation

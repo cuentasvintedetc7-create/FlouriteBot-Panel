@@ -5,6 +5,7 @@ node_modules/
 logs
 *.log
 npm-debug.log*
+data/logs/*.log
 
 # Runtime data
 pids
@@ -30,3 +31,6 @@ Thumbs.db
 # Build artifacts
 dist/
 build/
+
+# Sensitive data (backup before git push if needed)
+# data/*.json - Keep these tracked for initial setup

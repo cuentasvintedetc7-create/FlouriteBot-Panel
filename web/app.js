@@ -8,6 +8,9 @@ const cors = require('cors');
 const helmet = require('helmet');
 const path = require('path');
 
+// Import middleware
+const { apiRateLimit, strictRateLimit } = require('./middleware/rateLimit');
+
 // Import routes
 const authRoutes = require('./routes/auth');
 const usersRoutes = require('./routes/users');
@@ -43,7 +46,13 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Static files
+// Apply rate limiting to all API routes
+app.use('/api/', apiRateLimit());
+
+// Stricter rate limit for authentication endpoints
+app.use('/api/auth/login', strictRateLimit());
+
+// Static files (no rate limit needed)
 app.use(express.static(path.join(__dirname, 'public')));
 
 // API Routes
@@ -57,7 +66,7 @@ app.use('/api/stats', statsRoutes);
 app.use('/api/logs', logsRoutes);
 app.use('/api/resets', resetsRoutes);
 
-// Health check endpoint
+// Health check endpoint (exempt from rate limiting already applied above)
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });

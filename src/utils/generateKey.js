@@ -1,7 +1,12 @@
 // Set to track generated keys for uniqueness within session
 const generatedKeys = new Set();
 
-// Generate Flourite key: Alphanumeric uppercase (e.g., FIUNVTFQRR99845F)
+/**
+ * Generate Flourite key: Alphanumeric uppercase
+ * Format: 16 characters (12 random + 4 timestamp)
+ * Example: FIUNVTFQRR99845F
+ * @returns {string} Generated key
+ */
 function generateFlouriteKey() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let key = '';
@@ -15,7 +20,16 @@ function generateFlouriteKey() {
   return key + timestamp;
 }
 
-// Generate Certificate key for Gbox: EXACTLY 10 hex characters (e.g., 17E21A4A78)
+/**
+ * Generate Certificate key for GBOX
+ * Format: EXACTLY 10 hexadecimal characters
+ * Example: 17E21A4A78
+ * 
+ * NOTE: This format was changed from the previous CERT-XXXXXXXX-XXXX format
+ * to match the GBOX system requirement of 10 hex character keys.
+ * 
+ * @returns {string} Generated 10-character hex key
+ */
 function generateCertificateKey() {
   const hexChars = '0123456789ABCDEF';
   let key = '';
@@ -27,7 +41,12 @@ function generateCertificateKey() {
   return key;
 }
 
-// Generate Call Of Duty key: format COD-XXXXXXXX-XXXX
+/**
+ * Generate Call Of Duty key
+ * Format: COD-XXXXXXXX-XXXX
+ * Example: COD-A1B2C3D4-E5F6
+ * @returns {string} Generated key
+ */
 function generateCallOfDutyKey() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let part1 = '';

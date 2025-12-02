@@ -2,6 +2,10 @@
  * FlouriteBot Admin Panel - Main Application
  */
 
+// Configuration constants
+const TOAST_FADE_DURATION = 300;   // Duration of toast fade animation in ms
+const TOAST_DISPLAY_DURATION = 3000; // How long toast stays visible in ms
+
 // DOM Elements
 const loginScreen = document.getElementById('login-screen');
 const dashboard = document.getElementById('dashboard');
@@ -35,9 +39,9 @@ function showToast(message, type = 'info') {
   container.appendChild(toast);
   
   setTimeout(() => {
-    toast.style.animation = 'slideIn 0.3s ease reverse';
-    setTimeout(() => toast.remove(), 300);
-  }, 3000);
+    toast.style.animation = `slideIn ${TOAST_FADE_DURATION / 1000}s ease reverse`;
+    setTimeout(() => toast.remove(), TOAST_FADE_DURATION);
+  }, TOAST_DISPLAY_DURATION);
 }
 
 // Modal functions

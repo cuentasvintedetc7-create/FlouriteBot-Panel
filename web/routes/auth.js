@@ -8,9 +8,14 @@ const router = express.Router();
 const { generateToken, authMiddleware } = require('../middleware/auth');
 const db = require('../../src/utils/db');
 
-// Admin credentials - should be stored securely in production
+// Admin credentials configuration
+// SECURITY: In production, always set WEB_ADMIN_USER and WEB_ADMIN_HASH environment variables
+// Generate hash with: node -e "console.log(require('bcryptjs').hashSync('yourpassword', 10))"
 const ADMIN_USERNAME = process.env.WEB_ADMIN_USER || 'admin';
-const ADMIN_PASSWORD_HASH = process.env.WEB_ADMIN_HASH || bcrypt.hashSync('admin123', 10);
+
+// Only use default hash in development. Production requires WEB_ADMIN_HASH env var.
+const DEFAULT_HASH = process.env.NODE_ENV === 'production' ? null : bcrypt.hashSync('admin123', 10);
+const ADMIN_PASSWORD_HASH = process.env.WEB_ADMIN_HASH || DEFAULT_HASH;
 
 /**
  * POST /api/auth/login
@@ -18,6 +23,15 @@ const ADMIN_PASSWORD_HASH = process.env.WEB_ADMIN_HASH || bcrypt.hashSync('admin
  */
 router.post('/login', (req, res) => {
   try {
+    // Check if credentials are configured in production
+    if (!ADMIN_PASSWORD_HASH) {
+      console.error('Web admin authentication not configured. Set WEB_ADMIN_HASH environment variable.');
+      return res.status(500).json({
+        success: false,
+        message: 'Server authentication not configured'
+      });
+    }
+    
     const { username, password } = req.body;
     
     if (!username || !password) {

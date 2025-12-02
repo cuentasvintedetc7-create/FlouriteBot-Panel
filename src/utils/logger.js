@@ -119,7 +119,8 @@ function writeLog(level, message, data = null) {
   
   // Also log to console in development
   if (process.env.NODE_ENV !== 'production') {
-    const consoleMethod = level === 'ERROR' ? 'error' : level === 'WARN' ? 'warn' : 'log';
+    const consoleMethods = { ERROR: 'error', WARN: 'warn', INFO: 'log', DEBUG: 'log' };
+    const consoleMethod = consoleMethods[level] || 'log';
     console[consoleMethod](`[${level}] ${message}`, data || '');
   }
 }

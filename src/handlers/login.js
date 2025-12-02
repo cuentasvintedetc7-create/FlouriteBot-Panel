@@ -106,11 +106,8 @@ function setupLoginHandler(bot) {
         return ctx.reply('❌ User not found. Please try again with /login');
       }
       
-      // Check if user is already linked to another telegram account
-      if (user.telegramId && user.telegramId !== telegramId) {
-        auth.clearLoginSession(telegramId);
-        return ctx.reply('❌ This account is already linked to another Telegram account.');
-      }
+      // Note: We allow login even if user is already linked to another telegram account
+      // This allows users to re-login from a different device
       
       auth.setLoginSession(telegramId, { 
         ...session, 

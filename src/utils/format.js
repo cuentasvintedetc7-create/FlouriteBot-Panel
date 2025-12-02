@@ -3,6 +3,11 @@ function formatBalance(balance) {
   return `$${balance.toFixed(2)}`;
 }
 
+// Format price - show whole number for integers, 2 decimals otherwise
+function formatPrice(price) {
+  return Number.isInteger(price) ? `$${price}` : `$${price.toFixed(2)}`;
+}
+
 // Format date to readable string
 function formatDate(dateString) {
   const date = new Date(dateString);
@@ -31,13 +36,47 @@ function formatDuration(duration) {
   }
 }
 
+// Product name mappings - ONLY these 3 products are valid
+const productNames = {
+  freefire: 'Flourite',
+  gbox: 'Certificate',
+  cod: 'Call Of Duty'
+};
+
+// Category name mappings - for stock.json
+const categoryNames = {
+  freefire: 'Free Fire (iOS)',
+  gbox: 'Gbox',
+  cod: 'COD Mobile'
+};
+
+// Get product name from category key
+function getProductName(categoryKey) {
+  return productNames[categoryKey] || categoryKey;
+}
+
+// Get category name from category key (for stock.json)
+function getCategoryName(categoryKey) {
+  return categoryNames[categoryKey] || categoryKey;
+}
+
+// Get display name for product (uppercase)
+function getProductDisplayName(categoryKey) {
+  const names = {
+    freefire: 'FLOURITE',
+    gbox: 'CERTIFICATE',
+    cod: 'CALL OF DUTY'
+  };
+  return names[categoryKey] || categoryKey.toUpperCase();
+}
+
 // Format purchase for display
 function formatPurchase(purchase) {
   return `📦 ${purchase.product}\n` +
          `🔑 Type: ${purchase.keyType}\n` +
          `⏱️ Duration: ${formatDuration(purchase.duration)}\n` +
          `🔐 Key: \`${purchase.key}\`\n` +
-         `💰 Price: ${formatBalance(purchase.price)}\n` +
+         `💰 Price: ${formatPrice(purchase.price)}\n` +
          `📅 Date: ${formatDate(purchase.date)}`;
 }
 
@@ -76,9 +115,15 @@ function formatStockSummary(stock) {
 
 module.exports = {
   formatBalance,
+  formatPrice,
   formatDate,
   formatDuration,
   formatPurchase,
   formatTopup,
-  formatStockSummary
+  formatStockSummary,
+  getProductName,
+  getCategoryName,
+  getProductDisplayName,
+  productNames,
+  categoryNames
 };

@@ -1,0 +1,26 @@
+{
+  "products": {
+    "freefire": {
+      "name": "Free Fire iOS",
+      "durations": {
+        "1day": 2.50,
+        "7days": 7,
+        "30days": 14
+      }
+    },
+    "gbox": {
+      "name": "Gbox Certificate",
+      "durations": {
+        "1year": 6
+      }
+    },
+    "cod": {
+      "name": "COD Mobile",
+      "durations": {
+        "1day": 3,
+        "7days": 10,
+        "30days": 18
+      }
+    }
+  }
+}

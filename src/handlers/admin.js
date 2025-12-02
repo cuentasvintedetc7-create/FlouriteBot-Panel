@@ -1,8 +1,8 @@
 const { Markup } = require('telegraf');
 const auth = require('../utils/auth');
 const db = require('../utils/db');
-const config = require('../../config.json');
-const { formatBalance, formatStockSummary, formatDate } = require('../utils/format');
+const products = require('../../data/products.json');
+const { formatBalance, formatPrice, formatStockSummary, formatDate, getProductName, getCategoryName, categoryNames } = require('../utils/format');
 const { generateKeys } = require('../utils/generateKey');
 const { adminPanelMenu } = require('../keyboards/mainMenu');
 
@@ -280,17 +280,22 @@ function setupAdminHandler(bot) {
       return ctx.answerCbQuery('❌ Not authorized');
     }
     
+    let priceInfo = '';
+    
+    // Display all products from products.json
+    for (const [key, productConfig] of Object.entries(products.products)) {
+      priceInfo += `\n*${productConfig.name}*\n`;
+      for (const [duration, price] of Object.entries(productConfig.durations)) {
+        priceInfo += `   ${duration}: ${formatPrice(price)}\n`;
+      }
+    }
+    
     return ctx.editMessageText(
       `🔧 *SETTINGS*\n\n` +
       `━━━━━━━━━━━━━━━━━━━━━\n\n` +
-      `Current Configuration:\n\n` +
-      `Products: ${config.products.join(', ')}\n` +
-      `Key Formats: ${config.keyFormats.join(', ')}\n\n` +
-      `*Prices:*\n` +
-      `   1 Day: ${formatBalance(config.prices['1day'])}\n` +
-      `   7 Days: ${formatBalance(config.prices['7days'])}\n` +
-      `   30 Days: ${formatBalance(config.prices['30days'])}\n\n` +
-      `_Edit config.json to change settings_`,
+      `*Available Products:*\n` +
+      `${priceInfo}\n` +
+      `_Edit data/products.json to change settings_`,
       {
         parse_mode: 'Markdown',
         reply_markup: {
@@ -733,67 +738,60 @@ function setupAdminHandler(bot) {
     
     const args = ctx.message.text.split(' ').slice(1);
     
-    if (args.length < 4) {
-      return ctx.reply(
-        '❌ Usage: /createstock PRODUCT KEYTYPE DURATION AMOUNT\n\n' +
-        'Products: Free Fire (iOS), Gbox, COD (iOS)\n' +
-        'Key Types: Flourite, BRMODS, DRIP MOBILE\n' +
-        'Durations: 1day, 7days, 30days, 1year\n\n' +
-        'Example: /createstock Gbox Flourite 7days 10'
-      );
-    }
-    
-    // Parse arguments - handle multi-word product names
-    let product, keyType, duration, amount;
-    
-    // Try to match known products
-    const productPatterns = ['Free Fire (iOS)', 'Gbox', 'COD (iOS)'];
-    const messageText = ctx.message.text.replace('/createstock ', '');
-    
-    for (const p of productPatterns) {
-      if (messageText.startsWith(p)) {
-        product = p;
-        const remaining = messageText.replace(p, '').trim().split(' ');
-        
-        // Check for key types
-        const keyTypePatterns = ['Flourite', 'BRMODS', 'DRIP MOBILE'];
-        for (const kt of keyTypePatterns) {
-          const remainingText = remaining.join(' ');
-          if (remainingText.startsWith(kt)) {
-            keyType = kt;
-            const final = remainingText.replace(kt, '').trim().split(' ');
-            duration = final[0];
-            amount = parseInt(final[1]);
-            break;
-          }
-        }
-        break;
+    if (args.length < 3) {
+      // Build help message dynamically from products.json
+      let helpMsg = '❌ Usage: /createstock CATEGORY DURATION AMOUNT\n\n';
+      helpMsg += '*Available Categories & Products:*\n';
+      
+      for (const [key, prod] of Object.entries(products.products)) {
+        const durations = Object.keys(prod.durations).join(', ');
+        helpMsg += `• ${key} → ${getProductName(key)} (${durations})\n`;
       }
+      
+      helpMsg += '\n*Examples:*\n';
+      helpMsg += '`/createstock freefire 1day 10`\n';
+      helpMsg += '`/createstock gbox 1year 5`\n';
+      helpMsg += '`/createstock cod 30days 10`';
+      
+      return ctx.reply(helpMsg, { parse_mode: 'Markdown' });
     }
     
-    if (!product || !keyType || !duration || isNaN(amount)) {
-      return ctx.reply(
-        '❌ Could not parse command. Usage:\n' +
-        '/createstock PRODUCT KEYTYPE DURATION AMOUNT\n\n' +
-        'Example: /createstock Gbox Flourite 7days 10'
-      );
+    const categoryKey = args[0].toLowerCase();
+    const duration = args[1];
+    const amount = parseInt(args[2]);
+    
+    // Validate category
+    const validCategories = Object.keys(products.products);
+    if (!validCategories.includes(categoryKey)) {
+      return ctx.reply(`❌ Invalid category. Valid: ${validCategories.join(', ')}`);
     }
+    
+    const productConfig = products.products[categoryKey];
     
     // Validate duration
-    if (!['1day', '7days', '30days', '1year'].includes(duration)) {
-      return ctx.reply('❌ Invalid duration. Use: 1day, 7days, 30days, or 1year');
+    if (!productConfig.durations[duration]) {
+      const validDurations = Object.keys(productConfig.durations).join(', ');
+      return ctx.reply(`❌ Invalid duration for ${categoryKey}. Valid durations: ${validDurations}`);
     }
     
-    // Generate keys
-    const keys = generateKeys(keyType, amount);
+    if (isNaN(amount) || amount <= 0) {
+      return ctx.reply('❌ Invalid amount. Please provide a positive number.');
+    }
     
-    // Add to stock
-    db.addToStock(product, keyType, duration, keys);
+    // Get category and product names using shared mappings
+    const categoryName = getCategoryName(categoryKey);
+    const productName = getProductName(categoryKey);
+    
+    // Generate keys
+    const keys = generateKeys(productName, amount);
+    
+    // Add to stock (use categoryName for stock.json path)
+    db.addToStock(categoryName, productName, duration, keys);
     
     return ctx.reply(
       `✅ *Stock Created*\n\n` +
-      `📦 Product: ${product}\n` +
-      `🔑 Type: ${keyType}\n` +
+      `📂 Category: ${categoryName}\n` +
+      `📦 Product: ${productName}\n` +
       `⏱️ Duration: ${duration}\n` +
       `📊 Amount: ${amount} keys\n\n` +
       `Keys generated and added to stock.`,

@@ -4,41 +4,15 @@
       "1day": [],
       "7days": [],
       "30days": []
-    },
-    "BRMODS": {
-      "1day": [],
-      "7days": [],
-      "30days": []
-    },
-    "DRIP MOBILE": {
-      "1day": [],
-      "7days": [],
-      "30days": []
     }
   },
   "Gbox": {
-    "Flourite": {
-      "1year": []
-    },
-    "BRMODS": {
-      "1year": []
-    },
-    "DRIP MOBILE": {
+    "Certificate": {
       "1year": []
     }
   },
-  "COD (iOS)": {
-    "Flourite": {
-      "1day": [],
-      "7days": [],
-      "30days": []
-    },
-    "BRMODS": {
-      "1day": [],
-      "7days": [],
-      "30days": []
-    },
-    "DRIP MOBILE": {
+  "COD Mobile": {
+    "Call Of Duty": {
       "1day": [],
       "7days": [],
       "30days": []

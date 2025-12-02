@@ -24,6 +24,10 @@ function formatDuration(duration) {
       return '7 Days';
     case '30days':
       return '30 Days';
+    case '31days':
+      return '31 Days';
+    case '365days':
+      return '365 Days (1 Year)';
     case '1year':
       return '1 Year';
     default:

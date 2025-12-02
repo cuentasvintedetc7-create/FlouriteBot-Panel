@@ -1,13 +1,13 @@
 const { Markup } = require('telegraf');
-const config = require('../../config.json');
+
+// This file is kept for backward compatibility but is no longer used
+// Each product now has a single key type defined in config.json
 
 function keyTypeMenu(product, duration, customPrice = null) {
-  const buttons = config.keyFormats.map(keyType => 
-    [Markup.button.callback(keyType, `confirm_${product}_${duration}_${keyType}`)]
-  );
-  buttons.push([Markup.button.callback('⬅️ Back', `product_${product}`)]);
-  
-  return Markup.inlineKeyboard(buttons);
+  // Return a simple back button since key type selection is no longer needed
+  return Markup.inlineKeyboard([
+    [Markup.button.callback('⬅️ Back', `product_${product}`)]
+  ]);
 }
 
 module.exports = {

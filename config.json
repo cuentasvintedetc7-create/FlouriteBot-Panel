@@ -1,22 +1,29 @@
 {
   "botToken": "8390016809:AAE5CL8pReQl1bolnl940AOkJ_8AY7mlwns",
   "adminId": 7458257277,
-  "prices": {
-    "1day": 2.30,
-    "7days": 10,
-    "30days": 18
+  "products": {
+    "Free Fire (iOS)": {
+      "keyType": "Flourite",
+      "durations": {
+        "1day": 2.50,
+        "7days": 7.00,
+        "30days": 14.00
+      }
+    },
+    "Gbox": {
+      "keyType": "Certificado",
+      "durations": {
+        "365days": 6.00
+      }
+    },
+    "COD (iOS)": {
+      "keyType": "COD",
+      "durations": {
+        "1day": 3.00,
+        "7days": 10.00,
+        "31days": 18.00
+      }
+    }
   },
-  "gboxPrice": 6,
-  "gboxDuration": "1year",
-  "supportWhatsApp": "https://wa.me/447832618273",
-  "products": [
-    "Free Fire (iOS)",
-    "Gbox",
-    "COD (iOS)"
-  ],
-  "keyFormats": [
-    "Flourite",
-    "BRMODS",
-    "DRIP MOBILE"
-  ]
+  "supportWhatsApp": "https://wa.me/447832618273"
 }

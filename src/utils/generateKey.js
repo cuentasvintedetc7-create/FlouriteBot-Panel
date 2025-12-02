@@ -15,35 +15,33 @@ function generateFlouriteKey() {
   return key + timestamp;
 }
 
-// Generate BRMODS key: format 👤2v686wkl🔑e8ic
-function generateBRMODSKey() {
-  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+// Generate Certificado key for Gbox: format CERT-XXXXXXXX-XXXX
+function generateCertificadoKey() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let part1 = '';
   let part2 = '';
-  // Add timestamp for uniqueness
-  const timestamp = Date.now().toString(36).slice(-3);
   
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 8; i++) {
     part1 += chars.charAt(Math.floor(Math.random() * chars.length));
   }
-  part1 += timestamp;
   
-  for (let i = 0; i < 4; i++) {
-    part2 += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
+  const timestamp = Date.now().toString(36).toUpperCase().slice(-4);
   
-  return `👤${part1}🔑${part2}`;
+  return `CERT-${part1}-${timestamp}`;
 }
 
-// Generate DRIP MOBILE key: numbers like 4168090123
-function generateDripMobileKey() {
-  // Use timestamp as base for uniqueness
-  const timestamp = Date.now().toString().slice(-6);
-  let key = '';
-  for (let i = 0; i < 4; i++) {
-    key += Math.floor(Math.random() * 10).toString();
+// Generate COD key: format COD-XXXXXXXX-XXXX
+function generateCODKey() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let part1 = '';
+  
+  for (let i = 0; i < 8; i++) {
+    part1 += chars.charAt(Math.floor(Math.random() * chars.length));
   }
-  return key + timestamp;
+  
+  const timestamp = Date.now().toString(36).toUpperCase().slice(-4);
+  
+  return `COD-${part1}-${timestamp}`;
 }
 
 // Generate key based on type
@@ -51,10 +49,10 @@ function generateKey(keyType) {
   switch (keyType) {
     case 'Flourite':
       return generateFlouriteKey();
-    case 'BRMODS':
-      return generateBRMODSKey();
-    case 'DRIP MOBILE':
-      return generateDripMobileKey();
+    case 'Certificado':
+      return generateCertificadoKey();
+    case 'COD':
+      return generateCODKey();
     default:
       return generateFlouriteKey();
   }
@@ -80,8 +78,8 @@ function generateKeys(keyType, count) {
 
 module.exports = {
   generateFlouriteKey,
-  generateBRMODSKey,
-  generateDripMobileKey,
+  generateCertificadoKey,
+  generateCODKey,
   generateKey,
   generateKeys
 };

@@ -280,16 +280,22 @@ function setupAdminHandler(bot) {
       return ctx.answerCbQuery('❌ Not authorized');
     }
     
+    const productList = Object.keys(config.products).join(', ');
+    let priceInfo = '';
+    
+    for (const [productName, productConfig] of Object.entries(config.products)) {
+      priceInfo += `\n*${productName}* (${productConfig.keyType}):\n`;
+      for (const [duration, price] of Object.entries(productConfig.durations)) {
+        priceInfo += `   ${duration}: $${price.toFixed(2)}\n`;
+      }
+    }
+    
     return ctx.editMessageText(
       `🔧 *SETTINGS*\n\n` +
       `━━━━━━━━━━━━━━━━━━━━━\n\n` +
       `Current Configuration:\n\n` +
-      `Products: ${config.products.join(', ')}\n` +
-      `Key Formats: ${config.keyFormats.join(', ')}\n\n` +
-      `*Prices:*\n` +
-      `   1 Day: ${formatBalance(config.prices['1day'])}\n` +
-      `   7 Days: ${formatBalance(config.prices['7days'])}\n` +
-      `   30 Days: ${formatBalance(config.prices['30days'])}\n\n` +
+      `Products: ${productList}\n` +
+      `${priceInfo}\n` +
       `_Edit config.json to change settings_`,
       {
         parse_mode: 'Markdown',
@@ -733,56 +739,58 @@ function setupAdminHandler(bot) {
     
     const args = ctx.message.text.split(' ').slice(1);
     
-    if (args.length < 4) {
-      return ctx.reply(
-        '❌ Usage: /createstock PRODUCT KEYTYPE DURATION AMOUNT\n\n' +
-        'Products: Free Fire (iOS), Gbox, COD (iOS)\n' +
-        'Key Types: Flourite, BRMODS, DRIP MOBILE\n' +
-        'Durations: 1day, 7days, 30days, 1year\n\n' +
-        'Example: /createstock Gbox Flourite 7days 10'
-      );
+    if (args.length < 3) {
+      // Build help message with valid products and durations
+      let helpMsg = '❌ Usage: /createstock PRODUCT DURATION AMOUNT\n\n';
+      helpMsg += '*Available Products:*\n';
+      
+      for (const [productName, productConfig] of Object.entries(config.products)) {
+        const durations = Object.keys(productConfig.durations).join(', ');
+        helpMsg += `• ${productName}\n   Key Type: ${productConfig.keyType}\n   Durations: ${durations}\n`;
+      }
+      
+      helpMsg += '\n*Examples:*\n';
+      helpMsg += '`/createstock Free Fire (iOS) 1day 10`\n';
+      helpMsg += '`/createstock Gbox 365days 5`\n';
+      helpMsg += '`/createstock COD (iOS) 31days 10`';
+      
+      return ctx.reply(helpMsg, { parse_mode: 'Markdown' });
     }
     
     // Parse arguments - handle multi-word product names
-    let product, keyType, duration, amount;
-    
-    // Try to match known products
-    const productPatterns = ['Free Fire (iOS)', 'Gbox', 'COD (iOS)'];
+    let product, duration, amount;
     const messageText = ctx.message.text.replace('/createstock ', '');
     
-    for (const p of productPatterns) {
+    // Try to match known products
+    const productNames = Object.keys(config.products);
+    
+    for (const p of productNames) {
       if (messageText.startsWith(p)) {
         product = p;
         const remaining = messageText.replace(p, '').trim().split(' ');
-        
-        // Check for key types
-        const keyTypePatterns = ['Flourite', 'BRMODS', 'DRIP MOBILE'];
-        for (const kt of keyTypePatterns) {
-          const remainingText = remaining.join(' ');
-          if (remainingText.startsWith(kt)) {
-            keyType = kt;
-            const final = remainingText.replace(kt, '').trim().split(' ');
-            duration = final[0];
-            amount = parseInt(final[1]);
-            break;
-          }
-        }
+        duration = remaining[0];
+        amount = parseInt(remaining[1]);
         break;
       }
     }
     
-    if (!product || !keyType || !duration || isNaN(amount)) {
-      return ctx.reply(
-        '❌ Could not parse command. Usage:\n' +
-        '/createstock PRODUCT KEYTYPE DURATION AMOUNT\n\n' +
-        'Example: /createstock Gbox Flourite 7days 10'
-      );
+    if (!product) {
+      return ctx.reply('❌ Invalid product. Use /createstock to see available products.');
     }
     
+    const productConfig = config.products[product];
+    
     // Validate duration
-    if (!['1day', '7days', '30days', '1year'].includes(duration)) {
-      return ctx.reply('❌ Invalid duration. Use: 1day, 7days, 30days, or 1year');
+    if (!productConfig.durations[duration]) {
+      const validDurations = Object.keys(productConfig.durations).join(', ');
+      return ctx.reply(`❌ Invalid duration for ${product}. Valid durations: ${validDurations}`);
     }
+    
+    if (isNaN(amount) || amount <= 0) {
+      return ctx.reply('❌ Invalid amount. Please provide a positive number.');
+    }
+    
+    const keyType = productConfig.keyType;
     
     // Generate keys
     const keys = generateKeys(keyType, amount);

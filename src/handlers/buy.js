@@ -2,15 +2,10 @@ const auth = require('../utils/auth');
 const db = require('../utils/db');
 const config = require('../../config.json');
 const { buyMenu } = require('../keyboards/buyMenu');
-const { productMenu, gboxProductMenu } = require('../keyboards/productMenu');
-const { keyTypeMenu } = require('../keyboards/keyTypeMenu');
+const { productMenu } = require('../keyboards/productMenu');
 const { mainMenuInline } = require('../keyboards/mainMenu');
 const { formatBalance, formatDuration } = require('../utils/format');
 const { generateKey } = require('../utils/generateKey');
-
-// GBOX special pricing from config
-const GBOX_PRICE = config.gboxPrice || 6;
-const GBOX_DURATION = config.gboxDuration || '1year';
 
 function setupBuyHandler(bot) {
   // Buy command
@@ -19,10 +14,15 @@ function setupBuyHandler(bot) {
       return ctx.reply('❌ You are not logged in. Use /login');
     }
     
-    return ctx.reply('🛒 *Select a product category:*', {
-      parse_mode: 'Markdown',
-      ...buyMenu()
-    });
+    return ctx.reply(
+      '🛒 *Select a product category:*\n\n' +
+      '━━━━━━━━━━━━━━━━━━━━━\n' +
+      '📦 Choose the product you want to purchase.',
+      {
+        parse_mode: 'Markdown',
+        ...buyMenu()
+      }
+    );
   });
   
   // Buy button action
@@ -31,10 +31,15 @@ function setupBuyHandler(bot) {
       return ctx.answerCbQuery('❌ You are not logged in. Use /login');
     }
     
-    return ctx.editMessageText('🛒 *Select a product category:*', {
-      parse_mode: 'Markdown',
-      ...buyMenu()
-    });
+    return ctx.editMessageText(
+      '🛒 *Select a product category:*\n\n' +
+      '━━━━━━━━━━━━━━━━━━━━━\n' +
+      '📦 Choose the product you want to purchase.',
+      {
+        parse_mode: 'Markdown',
+        ...buyMenu()
+      }
+    );
   });
   
   // Handle "🛒 Buy" button from keyboard (both old and new)
@@ -43,44 +48,44 @@ function setupBuyHandler(bot) {
       return ctx.reply('❌ You are not logged in. Use /login');
     }
     
-    return ctx.reply('🛒 *Select a product category:*', {
-      parse_mode: 'Markdown',
-      ...buyMenu()
-    });
+    return ctx.reply(
+      '🛒 *Select a product category:*\n\n' +
+      '━━━━━━━━━━━━━━━━━━━━━\n' +
+      '📦 Choose the product you want to purchase.',
+      {
+        parse_mode: 'Markdown',
+        ...buyMenu()
+      }
+    );
   });
   
-  // Product selection
+  // Product selection - show durations
   bot.action(/^product_(.+)$/, (ctx) => {
     if (!auth.isLoggedIn(ctx.from.id)) {
       return ctx.answerCbQuery('❌ You are not logged in. Use /login');
     }
     
     const product = ctx.match[1];
+    const productConfig = config.products[product];
     
-    // Special handling for Gbox - only 1 year at $6
-    if (product === 'Gbox') {
-      return ctx.editMessageText(
-        `📦 *${product}*\n\n` +
-        `━━━━━━━━━━━━━━━━━━━━━\n` +
-        `📜 *GBOX CERTIFICADO*\n` +
-        `⏱️ Duration: *1 Year*\n` +
-        `💰 Price: *$${GBOX_PRICE}*\n` +
-        `━━━━━━━━━━━━━━━━━━━━━\n\n` +
-        `Select key format:`,
-        {
-          parse_mode: 'Markdown',
-          ...keyTypeMenu(product, GBOX_DURATION, GBOX_PRICE)
-        }
-      );
+    if (!productConfig) {
+      return ctx.answerCbQuery('❌ Product not found');
     }
     
-    return ctx.editMessageText(`📦 *${product}*\n\nSelect duration:`, {
-      parse_mode: 'Markdown',
-      ...productMenu(product)
-    });
+    return ctx.editMessageText(
+      `📦 *${product}*\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n` +
+      `🔑 Key Type: *${productConfig.keyType}*\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `Select duration:`,
+      {
+        parse_mode: 'Markdown',
+        ...productMenu(product)
+      }
+    );
   });
   
-  // Duration selection (for non-Gbox products)
+  // Duration selection - go directly to confirm (no key type selection needed)
   bot.action(/^duration_(.+)_(\d+days?)$/, (ctx) => {
     if (!auth.isLoggedIn(ctx.from.id)) {
       return ctx.answerCbQuery('❌ You are not logged in. Use /login');
@@ -88,44 +93,19 @@ function setupBuyHandler(bot) {
     
     const product = ctx.match[1];
     const duration = ctx.match[2];
-    const price = config.prices[duration];
+    const productConfig = config.products[product];
     
-    return ctx.editMessageText(
-      `📦 *${product}*\n` +
-      `⏱️ Duration: *${formatDuration(duration)}*\n` +
-      `💰 Price: *${formatBalance(price)}*\n\n` +
-      `Select key format:`, 
-      {
-        parse_mode: 'Markdown',
-        ...keyTypeMenu(product, duration, price)
-      }
-    );
-  });
-  
-  // Confirm purchase with optional promo code
-  bot.action(/^confirm_(.+)_(.+)_(.+)$/, async (ctx) => {
-    const telegramId = ctx.from.id;
-    
-    if (!auth.isLoggedIn(telegramId)) {
-      return ctx.answerCbQuery('❌ You are not logged in. Use /login');
+    if (!productConfig || !productConfig.durations[duration]) {
+      return ctx.answerCbQuery('❌ Invalid selection');
     }
     
-    const product = ctx.match[1];
-    const duration = ctx.match[2];
-    const keyType = ctx.match[3];
+    const price = productConfig.durations[duration];
+    const keyType = productConfig.keyType;
+    const user = auth.getLoggedInUser(ctx.from.id);
+    const stock = db.getStockCount(product, keyType, duration);
     
-    // Get price based on product
-    let price;
-    if (product === 'Gbox') {
-      price = GBOX_PRICE;
-    } else {
-      price = config.prices[duration];
-    }
-    
-    const user = auth.getLoggedInUser(telegramId);
-    
-    // Store purchase info in session for promo code option
-    auth.setLoginSession(telegramId, {
+    // Store purchase info in session
+    auth.setLoginSession(ctx.from.id, {
       pendingPurchase: {
         product,
         duration,
@@ -141,6 +121,7 @@ function setupBuyHandler(bot) {
       `🔑 Type: *${keyType}*\n` +
       `⏱️ Duration: *${formatDuration(duration)}*\n` +
       `💰 Price: *${formatBalance(price)}*\n` +
+      `📊 Stock: *${stock} available*\n` +
       `━━━━━━━━━━━━━━━━━━━━━\n\n` +
       `💵 Your Balance: *${formatBalance(user.balance)}*\n\n` +
       `Do you have a promo code?`,
@@ -200,6 +181,7 @@ function setupBuyHandler(bot) {
     
     const { product, duration, keyType, originalPrice } = session.pendingPurchase;
     const user = auth.getLoggedInUser(ctx.from.id);
+    const stock = db.getStockCount(product, keyType, duration);
     
     // Clear promo step
     auth.setLoginSession(ctx.from.id, { 
@@ -213,6 +195,7 @@ function setupBuyHandler(bot) {
       `🔑 Type: *${keyType}*\n` +
       `⏱️ Duration: *${formatDuration(duration)}*\n` +
       `💰 Price: *${formatBalance(originalPrice)}*\n` +
+      `📊 Stock: *${stock} available*\n` +
       `━━━━━━━━━━━━━━━━━━━━━\n\n` +
       `💵 Your Balance: *${formatBalance(user.balance)}*`,
       {
@@ -263,18 +246,6 @@ function setupBuyHandler(bot) {
     db.addBalance(user.username, -finalPrice);
     
     // Record purchase with promo code info
-    const purchase = {
-      telegramId,
-      username: user.username,
-      product,
-      keyType,
-      duration,
-      key,
-      price: finalPrice,
-      originalPrice,
-      promoCode: promoCode || null,
-      date: new Date().toISOString()
-    };
     db.addPurchase(telegramId, user.username, product, keyType, duration, key, finalPrice);
     
     // Mark promo code as used

@@ -15,11 +15,10 @@ function generateFlouriteKey() {
   return key + timestamp;
 }
 
-// Generate Certificado key for Gbox: format CERT-XXXXXXXX-XXXX
-function generateCertificadoKey() {
+// Generate Certificate key for Gbox: format CERT-XXXXXXXX-XXXX
+function generateCertificateKey() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let part1 = '';
-  let part2 = '';
   
   for (let i = 0; i < 8; i++) {
     part1 += chars.charAt(Math.floor(Math.random() * chars.length));
@@ -30,8 +29,8 @@ function generateCertificadoKey() {
   return `CERT-${part1}-${timestamp}`;
 }
 
-// Generate COD key: format COD-XXXXXXXX-XXXX
-function generateCODKey() {
+// Generate Call Of Duty key: format COD-XXXXXXXX-XXXX
+function generateCallOfDutyKey() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let part1 = '';
   
@@ -44,28 +43,28 @@ function generateCODKey() {
   return `COD-${part1}-${timestamp}`;
 }
 
-// Generate key based on type
-function generateKey(keyType) {
-  switch (keyType) {
+// Generate key based on product name
+function generateKey(productName) {
+  switch (productName) {
     case 'Flourite':
       return generateFlouriteKey();
-    case 'Certificado':
-      return generateCertificadoKey();
-    case 'COD':
-      return generateCODKey();
+    case 'Certificate':
+      return generateCertificateKey();
+    case 'Call Of Duty':
+      return generateCallOfDutyKey();
     default:
       return generateFlouriteKey();
   }
 }
 
 // Generate multiple keys with uniqueness check
-function generateKeys(keyType, count) {
+function generateKeys(productName, count) {
   const keys = new Set();
   let attempts = 0;
   const maxAttempts = count * 10;
   
   while (keys.size < count && attempts < maxAttempts) {
-    const key = generateKey(keyType);
+    const key = generateKey(productName);
     if (!generatedKeys.has(key)) {
       keys.add(key);
       generatedKeys.add(key);
@@ -78,8 +77,8 @@ function generateKeys(keyType, count) {
 
 module.exports = {
   generateFlouriteKey,
-  generateCertificadoKey,
-  generateCODKey,
+  generateCertificateKey,
+  generateCallOfDutyKey,
   generateKey,
   generateKeys
 };

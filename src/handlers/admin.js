@@ -280,21 +280,23 @@ function setupAdminHandler(bot) {
       return ctx.answerCbQuery('❌ Not authorized');
     }
     
-    const productList = Object.keys(config.products).join(', ');
+    const categoryList = config.categories.join(', ');
     let priceInfo = '';
     
-    for (const [productName, productConfig] of Object.entries(config.products)) {
-      priceInfo += `\n*${productName}* (${productConfig.keyType}):\n`;
+    for (const category of config.categories) {
+      const productConfig = config.products[category];
+      priceInfo += `\n*${category}*\n`;
+      priceInfo += `   Product: ${productConfig.name}\n`;
       for (const [duration, price] of Object.entries(productConfig.durations)) {
-        priceInfo += `   ${duration}: $${price.toFixed(2)}\n`;
+        const priceText = Number.isInteger(price) ? `$${price}` : `$${price.toFixed(2)}`;
+        priceInfo += `   ${duration}: ${priceText}\n`;
       }
     }
     
     return ctx.editMessageText(
       `🔧 *SETTINGS*\n\n` +
       `━━━━━━━━━━━━━━━━━━━━━\n\n` +
-      `Current Configuration:\n\n` +
-      `Products: ${productList}\n` +
+      `*Categories:* ${categoryList}\n` +
       `${priceInfo}\n` +
       `_Edit config.json to change settings_`,
       {
@@ -740,68 +742,67 @@ function setupAdminHandler(bot) {
     const args = ctx.message.text.split(' ').slice(1);
     
     if (args.length < 3) {
-      // Build help message with valid products and durations
-      let helpMsg = '❌ Usage: /createstock PRODUCT DURATION AMOUNT\n\n';
-      helpMsg += '*Available Products:*\n';
+      // Build help message with valid categories and durations
+      let helpMsg = '❌ Usage: /createstock CATEGORY DURATION AMOUNT\n\n';
+      helpMsg += '*Available Categories & Products:*\n';
       
-      for (const [productName, productConfig] of Object.entries(config.products)) {
+      for (const category of config.categories) {
+        const productConfig = config.products[category];
         const durations = Object.keys(productConfig.durations).join(', ');
-        helpMsg += `• ${productName}\n   Key Type: ${productConfig.keyType}\n   Durations: ${durations}\n`;
+        helpMsg += `• ${category}\n   Product: ${productConfig.name}\n   Durations: ${durations}\n`;
       }
       
       helpMsg += '\n*Examples:*\n';
-      helpMsg += '`/createstock Free Fire (iOS) 1day 10`\n';
-      helpMsg += '`/createstock Gbox 365days 5`\n';
-      helpMsg += '`/createstock COD (iOS) 31days 10`';
+      helpMsg += '`/createstock FREE FIRE IOS 1day 10`\n';
+      helpMsg += '`/createstock GBOX 1year 5`\n';
+      helpMsg += '`/createstock COD MOBILE 30days 10`';
       
       return ctx.reply(helpMsg, { parse_mode: 'Markdown' });
     }
     
-    // Parse arguments - handle multi-word product names
-    let product, duration, amount;
+    // Parse arguments - handle multi-word category names
+    let category, duration, amount;
     const messageText = ctx.message.text.replace('/createstock ', '');
     
-    // Try to match known products
-    const productNames = Object.keys(config.products);
-    
-    for (const p of productNames) {
-      if (messageText.startsWith(p)) {
-        product = p;
-        const remaining = messageText.replace(p, '').trim().split(' ');
+    // Try to match known categories
+    for (const cat of config.categories) {
+      if (messageText.toUpperCase().startsWith(cat)) {
+        category = cat;
+        const remaining = messageText.substring(cat.length).trim().split(' ');
         duration = remaining[0];
         amount = parseInt(remaining[1]);
         break;
       }
     }
     
-    if (!product) {
-      return ctx.reply('❌ Invalid product. Use /createstock to see available products.');
+    if (!category) {
+      return ctx.reply('❌ Invalid category. Use /createstock to see available categories.');
     }
     
-    const productConfig = config.products[product];
+    const productConfig = config.products[category];
     
     // Validate duration
     if (!productConfig.durations[duration]) {
       const validDurations = Object.keys(productConfig.durations).join(', ');
-      return ctx.reply(`❌ Invalid duration for ${product}. Valid durations: ${validDurations}`);
+      return ctx.reply(`❌ Invalid duration for ${category}. Valid durations: ${validDurations}`);
     }
     
     if (isNaN(amount) || amount <= 0) {
       return ctx.reply('❌ Invalid amount. Please provide a positive number.');
     }
     
-    const keyType = productConfig.keyType;
+    const productName = productConfig.name;
     
     // Generate keys
-    const keys = generateKeys(keyType, amount);
+    const keys = generateKeys(productName, amount);
     
     // Add to stock
-    db.addToStock(product, keyType, duration, keys);
+    db.addToStock(category, productName, duration, keys);
     
     return ctx.reply(
       `✅ *Stock Created*\n\n` +
-      `📦 Product: ${product}\n` +
-      `🔑 Type: ${keyType}\n` +
+      `📂 Category: ${category}\n` +
+      `📦 Product: ${productName}\n` +
       `⏱️ Duration: ${duration}\n` +
       `📊 Amount: ${amount} keys\n\n` +
       `Keys generated and added to stock.`,

@@ -2,7 +2,7 @@ const auth = require('../utils/auth');
 const db = require('../utils/db');
 const config = require('../../config.json');
 const { buyMenu } = require('../keyboards/buyMenu');
-const { productMenu } = require('../keyboards/productMenu');
+const { productMenu, durationMenu } = require('../keyboards/productMenu');
 const { mainMenuInline } = require('../keyboards/mainMenu');
 const { formatBalance, formatDuration } = require('../utils/format');
 const { generateKey } = require('../utils/generateKey');
@@ -15,9 +15,9 @@ function setupBuyHandler(bot) {
     }
     
     return ctx.reply(
-      '🛒 *Select a product category:*\n\n' +
+      '🛒 *SELECT CATEGORY*\n\n' +
       '━━━━━━━━━━━━━━━━━━━━━\n' +
-      '📦 Choose the product you want to purchase.',
+      '📦 Choose a product category:',
       {
         parse_mode: 'Markdown',
         ...buyMenu()
@@ -32,9 +32,9 @@ function setupBuyHandler(bot) {
     }
     
     return ctx.editMessageText(
-      '🛒 *Select a product category:*\n\n' +
+      '🛒 *SELECT CATEGORY*\n\n' +
       '━━━━━━━━━━━━━━━━━━━━━\n' +
-      '📦 Choose the product you want to purchase.',
+      '📦 Choose a product category:',
       {
         parse_mode: 'Markdown',
         ...buyMenu()
@@ -42,19 +42,43 @@ function setupBuyHandler(bot) {
     );
   });
   
-  // Handle "🛒 Buy" button from keyboard (both old and new)
+  // Handle "🛒 Buy" button from keyboard
   bot.hears(['🛒 Buy', '🛒 Buy Product'], (ctx) => {
     if (!auth.isLoggedIn(ctx.from.id)) {
       return ctx.reply('❌ You are not logged in. Use /login');
     }
     
     return ctx.reply(
-      '🛒 *Select a product category:*\n\n' +
+      '🛒 *SELECT CATEGORY*\n\n' +
       '━━━━━━━━━━━━━━━━━━━━━\n' +
-      '📦 Choose the product you want to purchase.',
+      '📦 Choose a product category:',
       {
         parse_mode: 'Markdown',
         ...buyMenu()
+      }
+    );
+  });
+  
+  // Category selection - show product
+  bot.action(/^category_(.+)$/, (ctx) => {
+    if (!auth.isLoggedIn(ctx.from.id)) {
+      return ctx.answerCbQuery('❌ You are not logged in. Use /login');
+    }
+    
+    const category = ctx.match[1];
+    const productConfig = config.products[category];
+    
+    if (!productConfig) {
+      return ctx.answerCbQuery('❌ Category not found');
+    }
+    
+    return ctx.editMessageText(
+      `📂 *${category}*\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n` +
+      `Select product:`,
+      {
+        parse_mode: 'Markdown',
+        ...productMenu(category)
       }
     );
   });
@@ -65,62 +89,64 @@ function setupBuyHandler(bot) {
       return ctx.answerCbQuery('❌ You are not logged in. Use /login');
     }
     
-    const product = ctx.match[1];
-    const productConfig = config.products[product];
+    const category = ctx.match[1];
+    const productConfig = config.products[category];
     
     if (!productConfig) {
       return ctx.answerCbQuery('❌ Product not found');
     }
     
     return ctx.editMessageText(
-      `📦 *${product}*\n\n` +
+      `📦 *${productConfig.name}*\n\n` +
       `━━━━━━━━━━━━━━━━━━━━━\n` +
-      `🔑 Key Type: *${productConfig.keyType}*\n` +
+      `📂 Category: *${category}*\n` +
       `━━━━━━━━━━━━━━━━━━━━━\n\n` +
       `Select duration:`,
       {
         parse_mode: 'Markdown',
-        ...productMenu(product)
+        ...durationMenu(category)
       }
     );
   });
   
-  // Duration selection - go directly to confirm (no key type selection needed)
-  bot.action(/^duration_(.+)_(\d+days?)$/, (ctx) => {
+  // Duration selection - show confirmation
+  bot.action(/^duration_(.+)_(\w+)$/, (ctx) => {
     if (!auth.isLoggedIn(ctx.from.id)) {
       return ctx.answerCbQuery('❌ You are not logged in. Use /login');
     }
     
-    const product = ctx.match[1];
+    const category = ctx.match[1];
     const duration = ctx.match[2];
-    const productConfig = config.products[product];
+    const productConfig = config.products[category];
     
     if (!productConfig || !productConfig.durations[duration]) {
       return ctx.answerCbQuery('❌ Invalid selection');
     }
     
     const price = productConfig.durations[duration];
-    const keyType = productConfig.keyType;
+    const productName = productConfig.name;
     const user = auth.getLoggedInUser(ctx.from.id);
-    const stock = db.getStockCount(product, keyType, duration);
+    const stock = db.getStockCount(category, productName, duration);
     
     // Store purchase info in session
     auth.setLoginSession(ctx.from.id, {
       pendingPurchase: {
-        product,
+        category,
+        productName,
         duration,
-        keyType,
         originalPrice: price
       }
     });
     
+    const priceText = Number.isInteger(price) ? `$${price}` : `$${price.toFixed(2)}`;
+    
     return ctx.editMessageText(
-      `🛒 *Confirm Purchase*\n\n` +
+      `🛒 *CONFIRM PURCHASE*\n\n` +
       `━━━━━━━━━━━━━━━━━━━━━\n` +
-      `📦 Product: *${product}*\n` +
-      `🔑 Type: *${keyType}*\n` +
+      `📂 Category: *${category}*\n` +
+      `📦 Product: *${productName}*\n` +
       `⏱️ Duration: *${formatDuration(duration)}*\n` +
-      `💰 Price: *${formatBalance(price)}*\n` +
+      `💰 Price: *${priceText}*\n` +
       `📊 Stock: *${stock} available*\n` +
       `━━━━━━━━━━━━━━━━━━━━━\n\n` +
       `💵 Your Balance: *${formatBalance(user.balance)}*\n\n` +
@@ -131,7 +157,7 @@ function setupBuyHandler(bot) {
           inline_keyboard: [
             [{ text: '⭐ Apply Promo Code', callback_data: 'apply_promo' }],
             [{ text: '✅ Confirm Purchase', callback_data: 'finalize_purchase' }],
-            [{ text: '⬅️ Back', callback_data: `product_${product}` }]
+            [{ text: '⬅️ Back', callback_data: `product_${category}` }]
           ]
         }
       }
@@ -155,7 +181,7 @@ function setupBuyHandler(bot) {
     });
     
     return ctx.editMessageText(
-      `⭐ *Apply Promo Code*\n\n` +
+      `⭐ *APPLY PROMO CODE*\n\n` +
       `Please type your promo code now:`,
       {
         parse_mode: 'Markdown',
@@ -179,22 +205,24 @@ function setupBuyHandler(bot) {
       return ctx.answerCbQuery('❌ No pending purchase');
     }
     
-    const { product, duration, keyType, originalPrice } = session.pendingPurchase;
+    const { category, productName, duration, originalPrice } = session.pendingPurchase;
     const user = auth.getLoggedInUser(ctx.from.id);
-    const stock = db.getStockCount(product, keyType, duration);
+    const stock = db.getStockCount(category, productName, duration);
     
     // Clear promo step
     auth.setLoginSession(ctx.from.id, { 
       pendingPurchase: session.pendingPurchase 
     });
     
+    const priceText = Number.isInteger(originalPrice) ? `$${originalPrice}` : `$${originalPrice.toFixed(2)}`;
+    
     return ctx.editMessageText(
-      `🛒 *Confirm Purchase*\n\n` +
+      `🛒 *CONFIRM PURCHASE*\n\n` +
       `━━━━━━━━━━━━━━━━━━━━━\n` +
-      `📦 Product: *${product}*\n` +
-      `🔑 Type: *${keyType}*\n` +
+      `📂 Category: *${category}*\n` +
+      `📦 Product: *${productName}*\n` +
       `⏱️ Duration: *${formatDuration(duration)}*\n` +
-      `💰 Price: *${formatBalance(originalPrice)}*\n` +
+      `💰 Price: *${priceText}*\n` +
       `📊 Stock: *${stock} available*\n` +
       `━━━━━━━━━━━━━━━━━━━━━\n\n` +
       `💵 Your Balance: *${formatBalance(user.balance)}*`,
@@ -204,7 +232,7 @@ function setupBuyHandler(bot) {
           inline_keyboard: [
             [{ text: '⭐ Apply Promo Code', callback_data: 'apply_promo' }],
             [{ text: '✅ Confirm Purchase', callback_data: 'finalize_purchase' }],
-            [{ text: '⬅️ Back', callback_data: `product_${product}` }]
+            [{ text: '⬅️ Back', callback_data: `product_${category}` }]
           ]
         }
       }
@@ -224,7 +252,7 @@ function setupBuyHandler(bot) {
       return ctx.answerCbQuery('❌ No pending purchase');
     }
     
-    const { product, duration, keyType, originalPrice, discountedPrice, promoCode } = session.pendingPurchase;
+    const { category, productName, duration, originalPrice, discountedPrice, promoCode } = session.pendingPurchase;
     const finalPrice = discountedPrice !== undefined ? discountedPrice : originalPrice;
     
     const user = auth.getLoggedInUser(telegramId);
@@ -235,18 +263,18 @@ function setupBuyHandler(bot) {
     }
     
     // Try to get key from stock
-    let key = db.takeFromStock(product, keyType, duration);
+    let key = db.takeFromStock(category, productName, duration);
     
     // If no stock, generate new key
     if (!key) {
-      key = generateKey(keyType);
+      key = generateKey(productName);
     }
     
     // Deduct balance
     db.addBalance(user.username, -finalPrice);
     
-    // Record purchase with promo code info
-    db.addPurchase(telegramId, user.username, product, keyType, duration, key, finalPrice);
+    // Record purchase
+    db.addPurchase(telegramId, user.username, category, productName, duration, key, finalPrice);
     
     // Mark promo code as used
     if (promoCode) {
@@ -261,18 +289,21 @@ function setupBuyHandler(bot) {
     
     await ctx.answerCbQuery('✅ Purchase successful!');
     
-    let successMessage = `✅ *Purchase Successful!*\n\n` +
+    const priceText = Number.isInteger(finalPrice) ? `$${finalPrice}` : `$${finalPrice.toFixed(2)}`;
+    const origPriceText = Number.isInteger(originalPrice) ? `$${originalPrice}` : `$${originalPrice.toFixed(2)}`;
+    
+    let successMessage = `✅ *PURCHASE SUCCESSFUL!*\n\n` +
       `━━━━━━━━━━━━━━━━━━━━━\n` +
-      `📦 Product: *${product}*\n` +
-      `🔑 Type: *${keyType}*\n` +
+      `📂 Category: *${category}*\n` +
+      `📦 Product: *${productName}*\n` +
       `⏱️ Duration: *${formatDuration(duration)}*\n`;
     
     if (promoCode) {
       successMessage += `🎁 Promo: *${promoCode}*\n`;
-      successMessage += `💰 Original: ~${formatBalance(originalPrice)}~\n`;
-      successMessage += `💰 Final: *${formatBalance(finalPrice)}*\n`;
+      successMessage += `💰 Original: ~${origPriceText}~\n`;
+      successMessage += `💰 Final: *${priceText}*\n`;
     } else {
-      successMessage += `💰 Price: *${formatBalance(finalPrice)}*\n`;
+      successMessage += `💰 Price: *${priceText}*\n`;
     }
     
     successMessage += `━━━━━━━━━━━━━━━━━━━━━\n\n` +
@@ -306,7 +337,7 @@ function setupBuyHandler(bot) {
       return next();
     }
     
-    const { product, duration, keyType, originalPrice } = session.pendingPurchase;
+    const { category, productName, duration, originalPrice } = session.pendingPurchase;
     
     // Validate promo code
     const validation = db.validatePromoCode(text, user.username, originalPrice);
@@ -345,13 +376,16 @@ function setupBuyHandler(bot) {
       }
     });
     
+    const origPriceText = Number.isInteger(originalPrice) ? `$${originalPrice}` : `$${originalPrice.toFixed(2)}`;
+    const discPriceText = Number.isInteger(discountedPrice) ? `$${discountedPrice}` : `$${discountedPrice.toFixed(2)}`;
+    
     return ctx.reply(
-      `✅ *Promo Code Applied!*\n\n` +
+      `✅ *PROMO CODE APPLIED!*\n\n` +
       `━━━━━━━━━━━━━━━━━━━━━\n` +
       `🎁 Code: *${promo.code}*\n` +
-      `💰 Original Price: ~${formatBalance(originalPrice)}~\n` +
+      `💰 Original Price: ~${origPriceText}~\n` +
       `🔥 Discount: *-${formatBalance(discount)}*\n` +
-      `💵 Final Price: *${formatBalance(discountedPrice)}*\n` +
+      `💵 Final Price: *${discPriceText}*\n` +
       `━━━━━━━━━━━━━━━━━━━━━`,
       {
         parse_mode: 'Markdown',
@@ -375,7 +409,7 @@ function setupBuyHandler(bot) {
     auth.clearLoginSession(ctx.from.id);
     
     return ctx.editMessageText(
-      `🏠 *Main Menu*\n\n` +
+      `🏠 *MAIN MENU*\n\n` +
       `💰 Your balance: *${balance}*\n\n` +
       `Select an option:`,
       {

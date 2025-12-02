@@ -1,27 +1,28 @@
 {
   "botToken": "8390016809:AAE5CL8pReQl1bolnl940AOkJ_8AY7mlwns",
   "adminId": 7458257277,
+  "categories": ["FREE FIRE IOS", "GBOX", "COD MOBILE"],
   "products": {
-    "Free Fire (iOS)": {
-      "keyType": "Flourite",
+    "FREE FIRE IOS": {
+      "name": "Flourite",
       "durations": {
         "1day": 2.50,
-        "7days": 7.00,
-        "30days": 14.00
+        "7days": 7,
+        "30days": 14
       }
     },
-    "Gbox": {
-      "keyType": "Certificado",
+    "GBOX": {
+      "name": "Certificate",
       "durations": {
-        "365days": 6.00
+        "1year": 6
       }
     },
-    "COD (iOS)": {
-      "keyType": "COD",
+    "COD MOBILE": {
+      "name": "Call Of Duty",
       "durations": {
-        "1day": 3.00,
-        "7days": 10.00,
-        "31days": 18.00
+        "1day": 3,
+        "7days": 10,
+        "30days": 18
       }
     }
   },

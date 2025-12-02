@@ -1,12 +1,13 @@
 const { Markup } = require('telegraf');
 
 // This file is kept for backward compatibility but is no longer used
-// Each product now has a single key type defined in config.json
+// Each category now has a single product defined in config.json
+// The buy flow is: Category → Product → Duration → Confirm
 
-function keyTypeMenu(product, duration, customPrice = null) {
+function keyTypeMenu(category, duration, customPrice = null) {
   // Return a simple back button since key type selection is no longer needed
   return Markup.inlineKeyboard([
-    [Markup.button.callback('⬅️ Back', `product_${product}`)]
+    [Markup.button.callback('⬅️ Back', `category_${category}`)]
   ]);
 }
 

@@ -1,21 +1,21 @@
 {
-  "Free Fire (iOS)": {
+  "FREE FIRE IOS": {
     "Flourite": {
       "1day": [],
       "7days": [],
       "30days": []
     }
   },
-  "Gbox": {
-    "Certificado": {
-      "365days": []
+  "GBOX": {
+    "Certificate": {
+      "1year": []
     }
   },
-  "COD (iOS)": {
-    "COD": {
+  "COD MOBILE": {
+    "Call Of Duty": {
       "1day": [],
       "7days": [],
-      "31days": []
+      "30days": []
     }
   }
 }

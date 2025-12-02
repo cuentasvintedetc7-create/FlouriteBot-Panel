@@ -177,3 +177,11 @@ app.use((err, req, res, next) => {
 });
 
 module.exports = app;
+
+// Start server if running directly (not imported by server.js)
+if (require.main === module) {
+  const PORT = process.env.PORT || process.env.WEB_PORT || 4100;
+  app.listen(PORT, () => {
+    console.log(`🌐 Web Admin Panel running on port ${PORT}`);
+  });
+}

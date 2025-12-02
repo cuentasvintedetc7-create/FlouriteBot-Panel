@@ -2,7 +2,7 @@ const { Markup } = require('telegraf');
 const auth = require('../utils/auth');
 const db = require('../utils/db');
 const config = require('../../config.json');
-const { formatBalance, formatStockSummary, formatDate } = require('../utils/format');
+const { formatBalance, formatPrice, formatStockSummary, formatDate } = require('../utils/format');
 const { generateKeys } = require('../utils/generateKey');
 const { adminPanelMenu } = require('../keyboards/mainMenu');
 
@@ -288,8 +288,7 @@ function setupAdminHandler(bot) {
       priceInfo += `\n*${category}*\n`;
       priceInfo += `   Product: ${productConfig.name}\n`;
       for (const [duration, price] of Object.entries(productConfig.durations)) {
-        const priceText = Number.isInteger(price) ? `$${price}` : `$${price.toFixed(2)}`;
-        priceInfo += `   ${duration}: ${priceText}\n`;
+        priceInfo += `   ${duration}: ${formatPrice(price)}\n`;
       }
     }
     

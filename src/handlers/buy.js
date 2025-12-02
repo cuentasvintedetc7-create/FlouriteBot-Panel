@@ -4,7 +4,7 @@ const config = require('../../config.json');
 const { buyMenu } = require('../keyboards/buyMenu');
 const { productMenu, durationMenu } = require('../keyboards/productMenu');
 const { mainMenuInline } = require('../keyboards/mainMenu');
-const { formatBalance, formatDuration } = require('../utils/format');
+const { formatBalance, formatPrice, formatDuration } = require('../utils/format');
 const { generateKey } = require('../utils/generateKey');
 
 function setupBuyHandler(bot) {
@@ -138,15 +138,13 @@ function setupBuyHandler(bot) {
       }
     });
     
-    const priceText = Number.isInteger(price) ? `$${price}` : `$${price.toFixed(2)}`;
-    
     return ctx.editMessageText(
       `🛒 *CONFIRM PURCHASE*\n\n` +
       `━━━━━━━━━━━━━━━━━━━━━\n` +
       `📂 Category: *${category}*\n` +
       `📦 Product: *${productName}*\n` +
       `⏱️ Duration: *${formatDuration(duration)}*\n` +
-      `💰 Price: *${priceText}*\n` +
+      `💰 Price: *${formatPrice(price)}*\n` +
       `📊 Stock: *${stock} available*\n` +
       `━━━━━━━━━━━━━━━━━━━━━\n\n` +
       `💵 Your Balance: *${formatBalance(user.balance)}*\n\n` +
@@ -214,15 +212,13 @@ function setupBuyHandler(bot) {
       pendingPurchase: session.pendingPurchase 
     });
     
-    const priceText = Number.isInteger(originalPrice) ? `$${originalPrice}` : `$${originalPrice.toFixed(2)}`;
-    
     return ctx.editMessageText(
       `🛒 *CONFIRM PURCHASE*\n\n` +
       `━━━━━━━━━━━━━━━━━━━━━\n` +
       `📂 Category: *${category}*\n` +
       `📦 Product: *${productName}*\n` +
       `⏱️ Duration: *${formatDuration(duration)}*\n` +
-      `💰 Price: *${priceText}*\n` +
+      `💰 Price: *${formatPrice(originalPrice)}*\n` +
       `📊 Stock: *${stock} available*\n` +
       `━━━━━━━━━━━━━━━━━━━━━\n\n` +
       `💵 Your Balance: *${formatBalance(user.balance)}*`,
@@ -289,9 +285,6 @@ function setupBuyHandler(bot) {
     
     await ctx.answerCbQuery('✅ Purchase successful!');
     
-    const priceText = Number.isInteger(finalPrice) ? `$${finalPrice}` : `$${finalPrice.toFixed(2)}`;
-    const origPriceText = Number.isInteger(originalPrice) ? `$${originalPrice}` : `$${originalPrice.toFixed(2)}`;
-    
     let successMessage = `✅ *PURCHASE SUCCESSFUL!*\n\n` +
       `━━━━━━━━━━━━━━━━━━━━━\n` +
       `📂 Category: *${category}*\n` +
@@ -300,10 +293,10 @@ function setupBuyHandler(bot) {
     
     if (promoCode) {
       successMessage += `🎁 Promo: *${promoCode}*\n`;
-      successMessage += `💰 Original: ~${origPriceText}~\n`;
-      successMessage += `💰 Final: *${priceText}*\n`;
+      successMessage += `💰 Original: ~${formatPrice(originalPrice)}~\n`;
+      successMessage += `💰 Final: *${formatPrice(finalPrice)}*\n`;
     } else {
-      successMessage += `💰 Price: *${priceText}*\n`;
+      successMessage += `💰 Price: *${formatPrice(finalPrice)}*\n`;
     }
     
     successMessage += `━━━━━━━━━━━━━━━━━━━━━\n\n` +
@@ -376,16 +369,13 @@ function setupBuyHandler(bot) {
       }
     });
     
-    const origPriceText = Number.isInteger(originalPrice) ? `$${originalPrice}` : `$${originalPrice.toFixed(2)}`;
-    const discPriceText = Number.isInteger(discountedPrice) ? `$${discountedPrice}` : `$${discountedPrice.toFixed(2)}`;
-    
     return ctx.reply(
       `✅ *PROMO CODE APPLIED!*\n\n` +
       `━━━━━━━━━━━━━━━━━━━━━\n` +
       `🎁 Code: *${promo.code}*\n` +
-      `💰 Original Price: ~${origPriceText}~\n` +
-      `🔥 Discount: *-${formatBalance(discount)}*\n` +
-      `💵 Final Price: *${discPriceText}*\n` +
+      `💰 Original Price: ~${formatPrice(originalPrice)}~\n` +
+      `🔥 Discount: *-${formatPrice(discount)}*\n` +
+      `💵 Final Price: *${formatPrice(discountedPrice)}*\n` +
       `━━━━━━━━━━━━━━━━━━━━━`,
       {
         parse_mode: 'Markdown',

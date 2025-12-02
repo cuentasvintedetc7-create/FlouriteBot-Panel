@@ -3,6 +3,11 @@ function formatBalance(balance) {
   return `$${balance.toFixed(2)}`;
 }
 
+// Format price - show whole number for integers, 2 decimals otherwise
+function formatPrice(price) {
+  return Number.isInteger(price) ? `$${price}` : `$${price.toFixed(2)}`;
+}
+
 // Format date to readable string
 function formatDate(dateString) {
   const date = new Date(dateString);
@@ -37,7 +42,7 @@ function formatPurchase(purchase) {
          `🔑 Type: ${purchase.keyType}\n` +
          `⏱️ Duration: ${formatDuration(purchase.duration)}\n` +
          `🔐 Key: \`${purchase.key}\`\n` +
-         `💰 Price: ${formatBalance(purchase.price)}\n` +
+         `💰 Price: ${formatPrice(purchase.price)}\n` +
          `📅 Date: ${formatDate(purchase.date)}`;
 }
 
@@ -76,6 +81,7 @@ function formatStockSummary(stock) {
 
 module.exports = {
   formatBalance,
+  formatPrice,
   formatDate,
   formatDuration,
   formatPurchase,

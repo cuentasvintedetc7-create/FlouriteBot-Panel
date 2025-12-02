@@ -1,6 +1,6 @@
 const { Markup } = require('telegraf');
 const config = require('../../config.json');
-const { formatDuration } = require('../utils/format');
+const { formatDuration, formatPrice } = require('../utils/format');
 
 // Product menu shows the single product for a category
 function productMenu(category) {
@@ -37,10 +37,9 @@ function durationMenu(category) {
   // Generate buttons for each duration with proper price formatting
   for (const [duration, price] of Object.entries(productConfig.durations)) {
     const durationText = formatDuration(duration);
-    const priceText = Number.isInteger(price) ? `$${price}` : `$${price.toFixed(2)}`;
     buttons.push([
       Markup.button.callback(
-        `${durationText} – ${priceText}`,
+        `${durationText} – ${formatPrice(price)}`,
         `duration_${category}_${duration}`
       )
     ]);

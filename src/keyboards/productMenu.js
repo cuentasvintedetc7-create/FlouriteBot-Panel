@@ -25,6 +25,7 @@ function productMenu(categoryKey) {
 
 // Duration menu shows available durations for a product
 // Optional isReseller param to show stock counts
+// Returns null if all durations are out of stock
 function durationMenu(categoryKey, isReseller = false) {
   const productConfig = products.products[categoryKey];
   
@@ -40,31 +41,29 @@ function durationMenu(categoryKey, isReseller = false) {
   const categoryName = getCategoryName(categoryKey);
   const productName = getProductName(categoryKey);
   
+  // Track if any duration has stock
+  let hasAnyStock = false;
+  
   // Generate buttons for each duration with proper price formatting
   for (const [duration, price] of Object.entries(productConfig.durations)) {
     const durationText = formatDuration(duration);
+    const stockCount = db.getStockCount(categoryName, productName, duration);
     
-    // Get stock count if user is reseller
+    if (stockCount === 0) {
+      // Skip duration with 0 stock - don't show button
+      continue;
+    }
+    
+    hasAnyStock = true;
+    
     if (isReseller) {
-      const stockCount = db.getStockCount(categoryName, productName, duration);
-      
-      if (stockCount === 0) {
-        // Show disabled button with "Out of Stock" indicator
-        buttons.push([
-          Markup.button.callback(
-            `❌ ${durationText} – ${formatPrice(price)} (Out of Stock)`,
-            `no_stock_${categoryKey}_${duration}`
-          )
-        ]);
-      } else {
-        // Show button with stock count
-        buttons.push([
-          Markup.button.callback(
-            `${durationText} – ${formatPrice(price)} (📦 ${stockCount})`,
-            `duration_${categoryKey}_${duration}`
-          )
-        ]);
-      }
+      // Show button with stock count for resellers
+      buttons.push([
+        Markup.button.callback(
+          `${durationText} – ${formatPrice(price)} (📦 ${stockCount})`,
+          `duration_${categoryKey}_${duration}`
+        )
+      ]);
     } else {
       // Regular user - no stock display
       buttons.push([
@@ -74,6 +73,11 @@ function durationMenu(categoryKey, isReseller = false) {
         )
       ]);
     }
+  }
+  
+  // If no durations have stock, return null to signal out of stock
+  if (!hasAnyStock) {
+    return null;
   }
   
   buttons.push([Markup.button.callback('⬅️ Back', `category_${categoryKey}`)]);

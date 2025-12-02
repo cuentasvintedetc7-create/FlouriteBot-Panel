@@ -5,7 +5,6 @@ const { buyMenu } = require('../keyboards/buyMenu');
 const { productMenu, durationMenu } = require('../keyboards/productMenu');
 const { mainMenuInline } = require('../keyboards/mainMenu');
 const { formatBalance, formatPrice, formatDuration, getProductName, getCategoryName, getProductDisplayName } = require('../utils/format');
-const { generateKey } = require('../utils/generateKey');
 
 function setupBuyHandler(bot) {
   // Buy command
@@ -102,6 +101,28 @@ function setupBuyHandler(bot) {
     // Check if user is reseller to show stock info
     const isReseller = auth.isReseller(ctx.from.id);
     
+    // Get duration menu - returns null if all durations are out of stock
+    const menu = durationMenu(categoryKey, isReseller);
+    
+    if (!menu) {
+      // All durations are out of stock
+      return ctx.editMessageText(
+        `📦 *${displayName}*\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━━\n` +
+        `📂 Category: *${productConfig.name}*\n` +
+        `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `⚠️ Out of stock for this product. Please contact support.`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '⬅️ Back', callback_data: `category_${categoryKey}` }]
+            ]
+          }
+        }
+      );
+    }
+    
     return ctx.editMessageText(
       `📦 *${displayName}*\n\n` +
       `━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -110,7 +131,7 @@ function setupBuyHandler(bot) {
       `Select duration:`,
       {
         parse_mode: 'Markdown',
-        ...durationMenu(categoryKey, isReseller)
+        ...menu
       }
     );
   });
@@ -141,7 +162,12 @@ function setupBuyHandler(bot) {
     const categoryName = getCategoryName(categoryKey);
     const productName = getProductName(categoryKey);
     
+    // Validate stock before showing confirmation (prevent race conditions)
     const stock = db.getStockCount(categoryName, productName, duration);
+    
+    if (stock === 0) {
+      return ctx.answerCbQuery('❌ Out of stock. Try again later.', { show_alert: true });
+    }
     
     // Store purchase info in session
     auth.setLoginSession(ctx.from.id, {
@@ -189,6 +215,14 @@ function setupBuyHandler(bot) {
       return ctx.answerCbQuery('❌ No pending purchase');
     }
     
+    const { categoryName, productName, duration } = session.pendingPurchase;
+    
+    // Re-validate stock before proceeding
+    const stock = db.getStockCount(categoryName, productName, duration);
+    if (stock === 0) {
+      return ctx.answerCbQuery('❌ Out of stock. Try again later.', { show_alert: true });
+    }
+    
     auth.setLoginSession(ctx.from.id, { 
       ...session, 
       step: 'awaiting_promo_code' 
@@ -222,6 +256,24 @@ function setupBuyHandler(bot) {
     const { categoryKey, categoryName, productName, duration, originalPrice } = session.pendingPurchase;
     const user = auth.getLoggedInUser(ctx.from.id);
     const stock = db.getStockCount(categoryName, productName, duration);
+    
+    // Re-validate stock before showing confirmation
+    if (stock === 0) {
+      // Clear session and notify user
+      auth.clearLoginSession(ctx.from.id);
+      return ctx.editMessageText(
+        `❌ *Out of stock*\n\n` +
+        `This product is no longer available. Please try again later.`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '⬅️ Back to Products', callback_data: 'buy' }]
+            ]
+          }
+        }
+      );
+    }
     
     // Clear promo step
     auth.setLoginSession(ctx.from.id, { 
@@ -269,17 +321,23 @@ function setupBuyHandler(bot) {
     
     const user = auth.getLoggedInUser(telegramId);
     
+    // Re-validate stock before purchase (prevent race conditions)
+    const currentStock = db.getStockCount(categoryName, productName, duration);
+    if (currentStock === 0) {
+      return ctx.answerCbQuery('❌ Out of stock. Try again later.', { show_alert: true });
+    }
+    
     // Check balance
     if (user.balance < finalPrice) {
       return ctx.answerCbQuery(`❌ Insufficient balance! You need ${formatBalance(finalPrice)}`, { show_alert: true });
     }
     
-    // Try to get key from stock (use categoryName for stock.json path)
-    let key = db.takeFromStock(categoryName, productName, duration);
+    // Try to get key from stock - this is the ONLY place that removes a key
+    const key = db.takeFromStock(categoryName, productName, duration);
     
-    // If no stock, generate new key
+    // Block purchase if no key available (stock exhausted between check and take)
     if (!key) {
-      key = generateKey(productName);
+      return ctx.answerCbQuery('❌ Out of stock. Try again later.', { show_alert: true });
     }
     
     // Deduct balance
@@ -347,6 +405,24 @@ function setupBuyHandler(bot) {
     }
     
     const { categoryKey, categoryName, productName, duration, originalPrice } = session.pendingPurchase;
+    
+    // Re-validate stock before processing promo code
+    const stock = db.getStockCount(categoryName, productName, duration);
+    if (stock === 0) {
+      auth.clearLoginSession(telegramId);
+      return ctx.reply(
+        `❌ *Out of stock*\n\n` +
+        `This product is no longer available. Please try again later.`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '⬅️ Back to Products', callback_data: 'buy' }]
+            ]
+          }
+        }
+      );
+    }
     
     // Validate promo code
     const validation = db.validatePromoCode(text, user.username, originalPrice);

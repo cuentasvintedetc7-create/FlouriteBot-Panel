@@ -36,6 +36,28 @@ function formatDuration(duration) {
   }
 }
 
+// Product name mappings - ONLY these 3 products are valid
+const productNames = {
+  freefire: 'Flourite',
+  gbox: 'Certificate',
+  cod: 'Call Of Duty'
+};
+
+// Get product name from category key
+function getProductName(categoryKey) {
+  return productNames[categoryKey] || categoryKey;
+}
+
+// Get display name for product (uppercase)
+function getProductDisplayName(categoryKey) {
+  const names = {
+    freefire: 'FLOURITE',
+    gbox: 'CERTIFICATE',
+    cod: 'CALL OF DUTY'
+  };
+  return names[categoryKey] || categoryKey.toUpperCase();
+}
+
 // Format purchase for display
 function formatPurchase(purchase) {
   return `📦 ${purchase.product}\n` +
@@ -86,5 +108,8 @@ module.exports = {
   formatDuration,
   formatPurchase,
   formatTopup,
-  formatStockSummary
+  formatStockSummary,
+  getProductName,
+  getProductDisplayName,
+  productNames
 };

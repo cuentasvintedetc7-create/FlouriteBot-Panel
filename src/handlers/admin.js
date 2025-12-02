@@ -1,8 +1,8 @@
 const { Markup } = require('telegraf');
 const auth = require('../utils/auth');
 const db = require('../utils/db');
-const config = require('../../config.json');
-const { formatBalance, formatPrice, formatStockSummary, formatDate } = require('../utils/format');
+const products = require('../../data/products.json');
+const { formatBalance, formatPrice, formatStockSummary, formatDate, getProductName } = require('../utils/format');
 const { generateKeys } = require('../utils/generateKey');
 const { adminPanelMenu } = require('../keyboards/mainMenu');
 
@@ -280,13 +280,11 @@ function setupAdminHandler(bot) {
       return ctx.answerCbQuery('❌ Not authorized');
     }
     
-    const categoryList = config.categories.join(', ');
     let priceInfo = '';
     
-    for (const category of config.categories) {
-      const productConfig = config.products[category];
-      priceInfo += `\n*${category}*\n`;
-      priceInfo += `   Product: ${productConfig.name}\n`;
+    // Display all products from products.json
+    for (const [key, productConfig] of Object.entries(products.products)) {
+      priceInfo += `\n*${productConfig.name}*\n`;
       for (const [duration, price] of Object.entries(productConfig.durations)) {
         priceInfo += `   ${duration}: ${formatPrice(price)}\n`;
       }
@@ -295,9 +293,9 @@ function setupAdminHandler(bot) {
     return ctx.editMessageText(
       `🔧 *SETTINGS*\n\n` +
       `━━━━━━━━━━━━━━━━━━━━━\n\n` +
-      `*Categories:* ${categoryList}\n` +
+      `*Available Products:*\n` +
       `${priceInfo}\n` +
-      `_Edit config.json to change settings_`,
+      `_Edit data/products.json to change settings_`,
       {
         parse_mode: 'Markdown',
         reply_markup: {
@@ -741,66 +739,57 @@ function setupAdminHandler(bot) {
     const args = ctx.message.text.split(' ').slice(1);
     
     if (args.length < 3) {
-      // Build help message with valid categories and durations
+      // Build help message dynamically from products.json
       let helpMsg = '❌ Usage: /createstock CATEGORY DURATION AMOUNT\n\n';
       helpMsg += '*Available Categories & Products:*\n';
       
-      for (const category of config.categories) {
-        const productConfig = config.products[category];
-        const durations = Object.keys(productConfig.durations).join(', ');
-        helpMsg += `• ${category}\n   Product: ${productConfig.name}\n   Durations: ${durations}\n`;
+      for (const [key, prod] of Object.entries(products.products)) {
+        const durations = Object.keys(prod.durations).join(', ');
+        helpMsg += `• ${key} → ${getProductName(key)} (${durations})\n`;
       }
       
       helpMsg += '\n*Examples:*\n';
-      helpMsg += '`/createstock FREE FIRE IOS 1day 10`\n';
-      helpMsg += '`/createstock GBOX 1year 5`\n';
-      helpMsg += '`/createstock COD MOBILE 30days 10`';
+      helpMsg += '`/createstock freefire 1day 10`\n';
+      helpMsg += '`/createstock gbox 1year 5`\n';
+      helpMsg += '`/createstock cod 30days 10`';
       
       return ctx.reply(helpMsg, { parse_mode: 'Markdown' });
     }
     
-    // Parse arguments - handle multi-word category names
-    let category, duration, amount;
-    const messageText = ctx.message.text.replace('/createstock ', '');
+    const categoryKey = args[0].toLowerCase();
+    const duration = args[1];
+    const amount = parseInt(args[2]);
     
-    // Try to match known categories
-    for (const cat of config.categories) {
-      if (messageText.toUpperCase().startsWith(cat)) {
-        category = cat;
-        const remaining = messageText.substring(cat.length).trim().split(' ');
-        duration = remaining[0];
-        amount = parseInt(remaining[1]);
-        break;
-      }
+    // Validate category
+    const validCategories = Object.keys(products.products);
+    if (!validCategories.includes(categoryKey)) {
+      return ctx.reply(`❌ Invalid category. Valid: ${validCategories.join(', ')}`);
     }
     
-    if (!category) {
-      return ctx.reply('❌ Invalid category. Use /createstock to see available categories.');
-    }
-    
-    const productConfig = config.products[category];
+    const productConfig = products.products[categoryKey];
     
     // Validate duration
     if (!productConfig.durations[duration]) {
       const validDurations = Object.keys(productConfig.durations).join(', ');
-      return ctx.reply(`❌ Invalid duration for ${category}. Valid durations: ${validDurations}`);
+      return ctx.reply(`❌ Invalid duration for ${categoryKey}. Valid durations: ${validDurations}`);
     }
     
     if (isNaN(amount) || amount <= 0) {
       return ctx.reply('❌ Invalid amount. Please provide a positive number.');
     }
     
-    const productName = productConfig.name;
+    // Get product name using shared mapping
+    const productName = getProductName(categoryKey);
     
     // Generate keys
     const keys = generateKeys(productName, amount);
     
     // Add to stock
-    db.addToStock(category, productName, duration, keys);
+    db.addToStock(categoryKey, productName, duration, keys);
     
     return ctx.reply(
       `✅ *Stock Created*\n\n` +
-      `📂 Category: ${category}\n` +
+      `📂 Category: ${productConfig.name}\n` +
       `📦 Product: ${productName}\n` +
       `⏱️ Duration: ${duration}\n` +
       `📊 Amount: ${amount} keys\n\n` +

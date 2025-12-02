@@ -1,10 +1,10 @@
 const { Markup } = require('telegraf');
-const config = require('../../config.json');
+const products = require('../../data/products.json');
 const { formatDuration, formatPrice } = require('../utils/format');
 
 // Product menu shows the single product for a category
-function productMenu(category) {
-  const productConfig = config.products[category];
+function productMenu(categoryKey) {
+  const productConfig = products.products[categoryKey];
   
   if (!productConfig) {
     return Markup.inlineKeyboard([
@@ -14,7 +14,7 @@ function productMenu(category) {
   
   // Single product button for this category
   const buttons = [
-    [Markup.button.callback(`📦 ${productConfig.name}`, `product_${category}`)]
+    [Markup.button.callback(`📦 ${productConfig.name}`, `product_${categoryKey}`)]
   ];
   
   buttons.push([Markup.button.callback('⬅️ Back', 'buy')]);
@@ -23,8 +23,8 @@ function productMenu(category) {
 }
 
 // Duration menu shows available durations for a product
-function durationMenu(category) {
-  const productConfig = config.products[category];
+function durationMenu(categoryKey) {
+  const productConfig = products.products[categoryKey];
   
   if (!productConfig) {
     return Markup.inlineKeyboard([
@@ -40,12 +40,12 @@ function durationMenu(category) {
     buttons.push([
       Markup.button.callback(
         `${durationText} – ${formatPrice(price)}`,
-        `duration_${category}_${duration}`
+        `duration_${categoryKey}_${duration}`
       )
     ]);
   }
   
-  buttons.push([Markup.button.callback('⬅️ Back', `category_${category}`)]);
+  buttons.push([Markup.button.callback('⬅️ Back', `category_${categoryKey}`)]);
   
   return Markup.inlineKeyboard(buttons);
 }

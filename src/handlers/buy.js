@@ -1,10 +1,10 @@
 const auth = require('../utils/auth');
 const db = require('../utils/db');
-const config = require('../../config.json');
+const products = require('../../data/products.json');
 const { buyMenu } = require('../keyboards/buyMenu');
 const { productMenu, durationMenu } = require('../keyboards/productMenu');
 const { mainMenuInline } = require('../keyboards/mainMenu');
-const { formatBalance, formatPrice, formatDuration } = require('../utils/format');
+const { formatBalance, formatPrice, formatDuration, getProductName, getProductDisplayName } = require('../utils/format');
 const { generateKey } = require('../utils/generateKey');
 
 function setupBuyHandler(bot) {
@@ -59,79 +59,86 @@ function setupBuyHandler(bot) {
     );
   });
   
-  // Category selection - show product
-  bot.action(/^category_(.+)$/, (ctx) => {
+  // Category selection - show product (freefire, gbox, cod)
+  bot.action(/^category_(freefire|gbox|cod)$/, (ctx) => {
     if (!auth.isLoggedIn(ctx.from.id)) {
       return ctx.answerCbQuery('❌ You are not logged in. Use /login');
     }
     
-    const category = ctx.match[1];
-    const productConfig = config.products[category];
+    const categoryKey = ctx.match[1];
+    const productConfig = products.products[categoryKey];
     
     if (!productConfig) {
       return ctx.answerCbQuery('❌ Category not found');
     }
     
     return ctx.editMessageText(
-      `📂 *${category}*\n\n` +
+      `📂 *${productConfig.name}*\n\n` +
       `━━━━━━━━━━━━━━━━━━━━━\n` +
       `Select product:`,
       {
         parse_mode: 'Markdown',
-        ...productMenu(category)
+        ...productMenu(categoryKey)
       }
     );
   });
   
-  // Product selection - show durations
-  bot.action(/^product_(.+)$/, (ctx) => {
+  // Product selection - show durations (freefire, gbox, cod)
+  bot.action(/^product_(freefire|gbox|cod)$/, (ctx) => {
     if (!auth.isLoggedIn(ctx.from.id)) {
       return ctx.answerCbQuery('❌ You are not logged in. Use /login');
     }
     
-    const category = ctx.match[1];
-    const productConfig = config.products[category];
+    const categoryKey = ctx.match[1];
+    const productConfig = products.products[categoryKey];
     
     if (!productConfig) {
       return ctx.answerCbQuery('❌ Product not found');
     }
     
+    // Get display name using shared mapping
+    const displayName = getProductDisplayName(categoryKey);
+    
     return ctx.editMessageText(
-      `📦 *${productConfig.name}*\n\n` +
+      `📦 *${displayName}*\n\n` +
       `━━━━━━━━━━━━━━━━━━━━━\n` +
-      `📂 Category: *${category}*\n` +
+      `📂 Category: *${productConfig.name}*\n` +
       `━━━━━━━━━━━━━━━━━━━━━\n\n` +
       `Select duration:`,
       {
         parse_mode: 'Markdown',
-        ...durationMenu(category)
+        ...durationMenu(categoryKey)
       }
     );
   });
   
   // Duration selection - show confirmation
-  bot.action(/^duration_(.+)_(\w+)$/, (ctx) => {
+  bot.action(/^duration_(freefire|gbox|cod)_(1day|7days|30days|1year)$/, (ctx) => {
     if (!auth.isLoggedIn(ctx.from.id)) {
       return ctx.answerCbQuery('❌ You are not logged in. Use /login');
     }
     
-    const category = ctx.match[1];
+    const categoryKey = ctx.match[1];
     const duration = ctx.match[2];
-    const productConfig = config.products[category];
+    const productConfig = products.products[categoryKey];
     
     if (!productConfig || !productConfig.durations[duration]) {
       return ctx.answerCbQuery('❌ Invalid selection');
     }
     
     const price = productConfig.durations[duration];
-    const productName = productConfig.name;
     const user = auth.getLoggedInUser(ctx.from.id);
-    const stock = db.getStockCount(category, productName, duration);
+    
+    // Get product name using shared mapping
+    const productName = getProductName(categoryKey);
+    
+    const stock = db.getStockCount(categoryKey, productName, duration);
     
     // Store purchase info in session
     auth.setLoginSession(ctx.from.id, {
       pendingPurchase: {
-        category,
+        categoryKey,
+        categoryName: productConfig.name,
         productName,
         duration,
         originalPrice: price
@@ -141,7 +148,7 @@ function setupBuyHandler(bot) {
     return ctx.editMessageText(
       `🛒 *CONFIRM PURCHASE*\n\n` +
       `━━━━━━━━━━━━━━━━━━━━━\n` +
-      `📂 Category: *${category}*\n` +
+      `📂 Category: *${productConfig.name}*\n` +
       `📦 Product: *${productName}*\n` +
       `⏱️ Duration: *${formatDuration(duration)}*\n` +
       `💰 Price: *${formatPrice(price)}*\n` +
@@ -155,7 +162,7 @@ function setupBuyHandler(bot) {
           inline_keyboard: [
             [{ text: '⭐ Apply Promo Code', callback_data: 'apply_promo' }],
             [{ text: '✅ Confirm Purchase', callback_data: 'finalize_purchase' }],
-            [{ text: '⬅️ Back', callback_data: `product_${category}` }]
+            [{ text: '⬅️ Back', callback_data: `product_${categoryKey}` }]
           ]
         }
       }
@@ -203,9 +210,9 @@ function setupBuyHandler(bot) {
       return ctx.answerCbQuery('❌ No pending purchase');
     }
     
-    const { category, productName, duration, originalPrice } = session.pendingPurchase;
+    const { categoryKey, categoryName, productName, duration, originalPrice } = session.pendingPurchase;
     const user = auth.getLoggedInUser(ctx.from.id);
-    const stock = db.getStockCount(category, productName, duration);
+    const stock = db.getStockCount(categoryKey, productName, duration);
     
     // Clear promo step
     auth.setLoginSession(ctx.from.id, { 
@@ -215,7 +222,7 @@ function setupBuyHandler(bot) {
     return ctx.editMessageText(
       `🛒 *CONFIRM PURCHASE*\n\n` +
       `━━━━━━━━━━━━━━━━━━━━━\n` +
-      `📂 Category: *${category}*\n` +
+      `📂 Category: *${categoryName}*\n` +
       `📦 Product: *${productName}*\n` +
       `⏱️ Duration: *${formatDuration(duration)}*\n` +
       `💰 Price: *${formatPrice(originalPrice)}*\n` +
@@ -228,7 +235,7 @@ function setupBuyHandler(bot) {
           inline_keyboard: [
             [{ text: '⭐ Apply Promo Code', callback_data: 'apply_promo' }],
             [{ text: '✅ Confirm Purchase', callback_data: 'finalize_purchase' }],
-            [{ text: '⬅️ Back', callback_data: `product_${category}` }]
+            [{ text: '⬅️ Back', callback_data: `product_${categoryKey}` }]
           ]
         }
       }
@@ -248,7 +255,7 @@ function setupBuyHandler(bot) {
       return ctx.answerCbQuery('❌ No pending purchase');
     }
     
-    const { category, productName, duration, originalPrice, discountedPrice, promoCode } = session.pendingPurchase;
+    const { categoryKey, categoryName, productName, duration, originalPrice, discountedPrice, promoCode } = session.pendingPurchase;
     const finalPrice = discountedPrice !== undefined ? discountedPrice : originalPrice;
     
     const user = auth.getLoggedInUser(telegramId);
@@ -259,7 +266,7 @@ function setupBuyHandler(bot) {
     }
     
     // Try to get key from stock
-    let key = db.takeFromStock(category, productName, duration);
+    let key = db.takeFromStock(categoryKey, productName, duration);
     
     // If no stock, generate new key
     if (!key) {
@@ -270,7 +277,7 @@ function setupBuyHandler(bot) {
     db.addBalance(user.username, -finalPrice);
     
     // Record purchase
-    db.addPurchase(telegramId, user.username, category, productName, duration, key, finalPrice);
+    db.addPurchase(telegramId, user.username, categoryName, productName, duration, key, finalPrice);
     
     // Mark promo code as used
     if (promoCode) {
@@ -287,7 +294,7 @@ function setupBuyHandler(bot) {
     
     let successMessage = `✅ *PURCHASE SUCCESSFUL!*\n\n` +
       `━━━━━━━━━━━━━━━━━━━━━\n` +
-      `📂 Category: *${category}*\n` +
+      `📂 Category: *${categoryName}*\n` +
       `📦 Product: *${productName}*\n` +
       `⏱️ Duration: *${formatDuration(duration)}*\n`;
     
@@ -330,7 +337,7 @@ function setupBuyHandler(bot) {
       return next();
     }
     
-    const { category, productName, duration, originalPrice } = session.pendingPurchase;
+    const { categoryKey, categoryName, productName, duration, originalPrice } = session.pendingPurchase;
     
     // Validate promo code
     const validation = db.validatePromoCode(text, user.username, originalPrice);

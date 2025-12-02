@@ -83,6 +83,16 @@ a {
   margin-bottom: 30px;
 }
 
+.login-logo {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-bottom: 16px;
+  border: 3px solid var(--accent-primary);
+  box-shadow: 0 0 20px var(--shadow-color);
+}
+
 .logo-icon {
   font-size: 48px;
   background: var(--gradient-primary);
@@ -232,6 +242,14 @@ a {
   align-items: center;
   gap: 12px;
   border-bottom: 1px solid var(--border-color);
+}
+
+.sidebar-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--accent-primary);
 }
 
 .sidebar-header h2 {

@@ -1,8 +1,8 @@
 const bot = require('./src/bot');
 const webApp = require('./web/app');
 
-// Web server port
-const WEB_PORT = process.env.WEB_PORT || 3000;
+// Web server port - default to 4100 for the admin panel
+const WEB_PORT = process.env.PORT || process.env.WEB_PORT || 4100;
 
 console.log('🚀 FlouriteBot is starting...');
 

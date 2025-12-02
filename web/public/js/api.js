@@ -1,12 +1,20 @@
 /**
  * FlouriteBot Admin Panel - API Helper
+ * 
+ * Updated to:
+ * - Use credentials: 'include' for cookie-based auth
+ * - Handle token renewal notifications
+ * - Fallback to localStorage for backwards compatibility
  */
 
 const API = {
   baseUrl: '/api',
+  
+  // For backwards compatibility, still store token in localStorage
+  // but primary auth is via HttpOnly cookie
   token: localStorage.getItem('admin_token'),
 
-  // Set token
+  // Set token (for backwards compatibility)
   setToken(token) {
     this.token = token;
     if (token) {
@@ -25,6 +33,8 @@ const API = {
       ...options.headers
     };
     
+    // Add Authorization header for backwards compatibility
+    // Primary auth is via HttpOnly cookie
     if (this.token) {
       headers['Authorization'] = `Bearer ${this.token}`;
     }
@@ -32,15 +42,23 @@ const API = {
     try {
       const response = await fetch(url, {
         ...options,
-        headers
+        headers,
+        credentials: 'include' // Important: Include cookies in requests
       });
+      
+      // Check if token was renewed (server sends this header)
+      const tokenRenewed = response.headers.get('X-Token-Renewed');
+      if (tokenRenewed === 'true') {
+        console.log('Session token renewed automatically');
+      }
       
       const data = await response.json();
       
       if (response.status === 401) {
-        // Token expired or invalid
+        // Token expired or invalid - clear local storage
         this.setToken(null);
-        window.location.reload();
+        // Dispatch session expired event for the UI to handle
+        window.dispatchEvent(new Event('session-expired'));
         return { success: false, message: 'Session expired' };
       }
       
@@ -83,13 +101,27 @@ const API = {
   // Auth endpoints
   auth: {
     async login(username, password) {
-      return API.post('/auth/login', { username, password });
+      const result = await API.post('/auth/login', { username, password });
+      if (result.success && result.token) {
+        // Store token for backwards compatibility
+        API.setToken(result.token);
+      }
+      return result;
     },
     async me() {
       return API.get('/auth/me');
     },
     async logout() {
-      return API.post('/auth/logout', {});
+      const result = await API.post('/auth/logout', {});
+      API.setToken(null);
+      return result;
+    },
+    async refresh() {
+      const result = await API.post('/auth/refresh', {});
+      if (result.success && result.token) {
+        API.setToken(result.token);
+      }
+      return result;
     }
   },
 
@@ -99,19 +131,19 @@ const API = {
       return API.get('/users');
     },
     async get(username) {
-      return API.get(`/users/${username}`);
+      return API.get(`/users/${encodeURIComponent(username)}`);
     },
     async create(data) {
       return API.post('/users', data);
     },
     async update(username, data) {
-      return API.put(`/users/${username}`, data);
+      return API.put(`/users/${encodeURIComponent(username)}`, data);
     },
     async delete(username) {
-      return API.delete(`/users/${username}`);
+      return API.delete(`/users/${encodeURIComponent(username)}`);
     },
     async updateBalance(username, amount, action) {
-      return API.post(`/users/${username}/balance`, { amount, action });
+      return API.post(`/users/${encodeURIComponent(username)}/balance`, { amount, action });
     }
   },
 
@@ -185,13 +217,13 @@ const API = {
       return API.post('/promo', data);
     },
     async update(code, data) {
-      return API.put(`/promo/${code}`, data);
+      return API.put(`/promo/${encodeURIComponent(code)}`, data);
     },
     async delete(code) {
-      return API.delete(`/promo/${code}`);
+      return API.delete(`/promo/${encodeURIComponent(code)}`);
     },
     async toggle(code) {
-      return API.post(`/promo/${code}/toggle`, {});
+      return API.post(`/promo/${encodeURIComponent(code)}/toggle`, {});
     }
   },
 
@@ -215,10 +247,39 @@ const API = {
       return API.get(`/logs${query ? '?' + query : ''}`);
     },
     async getByLevel(level, lines = 100) {
-      return API.get(`/logs/level/${level}?lines=${lines}`);
+      return API.get(`/logs/level/${encodeURIComponent(level)}?lines=${lines}`);
     },
     async getFiles() {
       return API.get('/logs/files');
     }
   }
 };
+
+// Session refresh interval (every 30 minutes)
+const SESSION_REFRESH_INTERVAL = 30 * 60 * 1000;
+
+// Automatically refresh session periodically to keep it alive
+let sessionRefreshTimer = null;
+
+function startSessionRefresh() {
+  if (sessionRefreshTimer) {
+    clearInterval(sessionRefreshTimer);
+  }
+  sessionRefreshTimer = setInterval(async () => {
+    const result = await API.auth.me();
+    if (!result.success) {
+      console.log('Session check failed, may need to re-login');
+    }
+  }, SESSION_REFRESH_INTERVAL);
+}
+
+function stopSessionRefresh() {
+  if (sessionRefreshTimer) {
+    clearInterval(sessionRefreshTimer);
+    sessionRefreshTimer = null;
+  }
+}
+
+// Export session management functions
+window.startSessionRefresh = startSessionRefresh;
+window.stopSessionRefresh = stopSessionRefresh;

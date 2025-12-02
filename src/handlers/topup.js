@@ -217,7 +217,7 @@ function setupTopupHandler(bot) {
         caption: `💸 *NEW TOP-UP REQUEST*\n\n` +
           `━━━━━━━━━━━━━━━━━━━━━\n` +
           `📋 Request ID: #${topup.id}\n` +
-          `👤 Login: ${user.username}\n` +
+          `👤 Username: ${user.username}\n` +
           `📱 Phone: ${user.phone || 'Not provided'}\n` +
           `🆔 Telegram ID: ${telegramId}\n` +
           `💳 Method: ${method.title}\n` +
@@ -287,7 +287,7 @@ function setupTopupHandler(bot) {
         caption: `💸 *NEW TOP-UP REQUEST*\n\n` +
           `━━━━━━━━━━━━━━━━━━━━━\n` +
           `📋 Request ID: #${topup.id}\n` +
-          `👤 Login: ${user.username}\n` +
+          `👤 Username: ${user.username}\n` +
           `📱 Phone: ${user.phone || 'Not provided'}\n` +
           `🆔 Telegram ID: ${telegramId}\n` +
           `💳 Method: ${method.title}\n` +
@@ -335,7 +335,7 @@ function setupTopupHandler(bot) {
     
     return ctx.reply(
       `💰 *Approve Top-up #${topupId}*\n\n` +
-      `👤 User: ${topup.login}\n` +
+      `👤 User: ${topup.username}\n` +
       `💳 Method: ${topup.method}\n\n` +
       `Please enter the amount to add (numbers only):`,
       { parse_mode: 'Markdown' }
@@ -415,17 +415,17 @@ function setupTopupHandler(bot) {
     
     // Update topup status and add balance
     db.updateTopupStatus(topupId, 'APPROVED', amount);
-    db.addBalance(topup.login, amount);
+    db.addBalance(topup.username, amount);
     
     // Also record in topups for history
-    db.addTopup(topup.login, amount, topup.method);
+    db.addTopup(topup.username, amount, topup.method);
     
     auth.clearLoginSession(telegramId);
     
     await ctx.reply(
       `✅ *Top-up Approved!*\n\n` +
       `📋 Request ID: #${topupId}\n` +
-      `👤 User: ${topup.login}\n` +
+      `👤 User: ${topup.username}\n` +
       `💰 Amount: ${formatBalance(amount)}\n` +
       `💳 Method: ${topup.method}`,
       { parse_mode: 'Markdown' }

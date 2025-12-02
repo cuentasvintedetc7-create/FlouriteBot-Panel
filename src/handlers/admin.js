@@ -161,7 +161,7 @@ function setupAdminHandler(bot) {
       message += `No pending top-up requests.`;
     } else {
       pending.forEach((t, i) => {
-        message += `*#${t.id}* - ${t.login}\n`;
+        message += `*#${t.id}* - ${t.username}\n`;
         message += `💳 ${t.method}\n`;
         message += `📅 ${formatDate(t.date)}\n\n`;
       });

@@ -7,17 +7,94 @@ const https = require('https');
  * For demonstration, we'll use the server's IP as a placeholder.
  */
 
-// Simple HTTPS request wrapper
+// Sanitize text to prevent Markdown injection
+function sanitizeForMarkdown(text) {
+  if (!text || typeof text !== 'string') return 'unknown';
+  // Escape Markdown special characters
+  return text
+    .replace(/\*/g, '\\*')
+    .replace(/_/g, '\\_')
+    .replace(/`/g, '\\`')
+    .replace(/\[/g, '\\[')
+    .replace(/\]/g, '\\]')
+    .replace(/\(/g, '\\(')
+    .replace(/\)/g, '\\)')
+    .replace(/~/g, '\\~')
+    .replace(/>/g, '\\>')
+    .replace(/#/g, '\\#')
+    .replace(/\+/g, '\\+')
+    .replace(/-/g, '\\-')
+    .replace(/=/g, '\\=')
+    .replace(/\|/g, '\\|')
+    .replace(/\{/g, '\\{')
+    .replace(/\}/g, '\\}')
+    .replace(/\./g, '\\.')
+    .replace(/!/g, '\\!');
+}
+
+// Validate IP address format (basic validation)
+function isValidIPv4(ip) {
+  if (!ip || typeof ip !== 'string') return false;
+  const parts = ip.split('.');
+  if (parts.length !== 4) return false;
+  return parts.every(part => {
+    const num = parseInt(part, 10);
+    return num >= 0 && num <= 255 && part === String(num);
+  });
+}
+
+function isValidIPv6(ip) {
+  if (!ip || typeof ip !== 'string') return false;
+  // Basic IPv6 validation
+  const ipv6Regex = /^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$|^::([0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4}$|^([0-9a-fA-F]{1,4}:){1,7}:$|^([0-9a-fA-F]{1,4}:){0,6}::([0-9a-fA-F]{1,4}:){0,5}[0-9a-fA-F]{1,4}$/;
+  return ipv6Regex.test(ip);
+}
+
+function isValidIP(ip) {
+  return isValidIPv4(ip) || isValidIPv6(ip);
+}
+
+// Simple HTTPS request wrapper with security measures
 function httpsGet(url) {
   return new Promise((resolve, reject) => {
+    // Validate URL is for ipapi.co only (prevent SSRF)
+    const allowedHost = 'ipapi.co';
+    let urlObj;
+    try {
+      urlObj = new URL(url);
+    } catch (e) {
+      return reject(new Error('Invalid URL format'));
+    }
+    
+    if (urlObj.hostname !== allowedHost) {
+      return reject(new Error('Unauthorized API host'));
+    }
+    
+    if (urlObj.protocol !== 'https:') {
+      return reject(new Error('HTTPS required'));
+    }
+    
     const request = https.get(url, { timeout: 5000 }, (res) => {
+      // Limit response size to prevent memory exhaustion
       let data = '';
+      const maxSize = 10 * 1024; // 10KB max
+      
       res.on('data', (chunk) => {
         data += chunk;
+        if (data.length > maxSize) {
+          request.destroy();
+          reject(new Error('Response too large'));
+        }
       });
       res.on('end', () => {
         try {
-          resolve(JSON.parse(data));
+          const parsed = JSON.parse(data);
+          // Validate expected response structure
+          if (typeof parsed !== 'object' || parsed === null) {
+            reject(new Error('Invalid response format'));
+          } else {
+            resolve(parsed);
+          }
         } catch (e) {
           reject(new Error('Failed to parse response'));
         }
@@ -39,23 +116,36 @@ function httpsGet(url) {
  */
 async function getLocationFromIP(ip = null) {
   try {
+    // Validate IP if provided to prevent injection
+    if (ip !== null && !isValidIP(ip)) {
+      console.error('Invalid IP format provided:', ip);
+      return {
+        ip: 'unknown',
+        country: 'unknown',
+        countryCode: 'unknown',
+        city: 'unknown',
+        region: 'unknown'
+      };
+    }
+    
     const url = ip 
-      ? `https://ipapi.co/${ip}/json/` 
+      ? `https://ipapi.co/${encodeURIComponent(ip)}/json/` 
       : 'https://ipapi.co/json/';
     
     const data = await httpsGet(url);
     
+    // Sanitize response data
     return {
-      ip: data.ip || 'unknown',
-      country: data.country_name || 'unknown',
-      countryCode: data.country_code || 'unknown',
-      city: data.city || 'unknown',
-      region: data.region || 'unknown'
+      ip: sanitizeForMarkdown(String(data.ip || 'unknown')),
+      country: sanitizeForMarkdown(String(data.country_name || 'unknown')),
+      countryCode: sanitizeForMarkdown(String(data.country_code || 'unknown')),
+      city: sanitizeForMarkdown(String(data.city || 'unknown')),
+      region: sanitizeForMarkdown(String(data.region || 'unknown'))
     };
   } catch (error) {
     console.error('Error fetching IP location:', error.message);
     return {
-      ip: ip || 'unknown',
+      ip: 'unknown',
       country: 'unknown',
       countryCode: 'unknown',
       city: 'unknown',

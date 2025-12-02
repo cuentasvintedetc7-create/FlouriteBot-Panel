@@ -244,8 +244,8 @@ function setupAccountHandler(bot) {
     // Validate promo code
     const validation = db.validatePromoCode(code, user.username, 0);
     
-    if (!validation.valid) {
-      return ctx.reply(`❌ ${validation.error}`);
+    if (!validation.valid || !validation.promo) {
+      return ctx.reply(`❌ ${validation.error || 'Invalid promo code'}`);
     }
     
     const promo = validation.promo;

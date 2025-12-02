@@ -4,6 +4,36 @@ const db = require('../utils/db');
 const { mainMenu, mainMenuInline } = require('../keyboards/mainMenu');
 const { processLoginSecurityCheck } = require('../utils/ipCheck');
 
+// Simple in-memory lock for login operations (prevents race conditions)
+const loginLocks = new Map();
+
+function acquireLoginLock(username) {
+  const normalizedUsername = username.toLowerCase();
+  if (loginLocks.has(normalizedUsername)) {
+    return false;
+  }
+  loginLocks.set(normalizedUsername, Date.now());
+  return true;
+}
+
+function releaseLoginLock(username) {
+  const normalizedUsername = username.toLowerCase();
+  loginLocks.delete(normalizedUsername);
+}
+
+// Clean up stale locks (older than 30 seconds)
+function cleanupStaleLocks() {
+  const now = Date.now();
+  for (const [username, timestamp] of loginLocks.entries()) {
+    if (now - timestamp > 30000) {
+      loginLocks.delete(username);
+    }
+  }
+}
+
+// Run cleanup every 60 seconds
+setInterval(cleanupStaleLocks, 60000);
+
 function setupLoginHandler(bot) {
   // Login command
   bot.command('login', (ctx) => {
@@ -111,52 +141,67 @@ function setupLoginHandler(bot) {
     
     // Handle password step
     if (session.step === 'awaiting_password') {
-      const user = auth.validateCredentials(session.username, text);
+      // Acquire lock to prevent race conditions during session management
+      if (!acquireLoginLock(session.username)) {
+        return ctx.reply('⏳ Please wait, another login is in progress for this account. Try again in a moment.');
+      }
       
-      if (user) {
-        // Check if user is admin - admins can have multiple sessions
-        const isUserAdmin = auth.isAdmin(telegramId) || user.role === 'admin';
+      try {
+        const user = auth.validateCredentials(session.username, text);
         
-        // Invalidate previous session if user is not admin (Task 6: Session management)
-        if (!isUserAdmin && user.telegramId && user.telegramId !== telegramId) {
-          // Notify previous session about invalidation
-          try {
-            await ctx.telegram.sendMessage(
-              user.telegramId,
-              '⚠️ *Session Invalidated*\n\n' +
-              'Your session has been terminated because you logged in from another device.\n\n' +
-              'If this wasn\'t you, please change your password immediately.',
-              { parse_mode: 'Markdown' }
-            );
-          } catch (e) {
-            // Previous session may have blocked the bot
+        if (user) {
+          // Check if user is admin - admins can have multiple sessions
+          const isUserAdmin = auth.isAdmin(telegramId) || user.role === 'admin';
+          
+          // Invalidate previous session if user is not admin (Task 6: Session management)
+          if (!isUserAdmin && user.telegramId && user.telegramId !== telegramId) {
+            // Notify previous session about invalidation
+            try {
+              await ctx.telegram.sendMessage(
+                user.telegramId,
+                '⚠️ *Session Invalidated*\n\n' +
+                'Your session has been terminated because you logged in from another device.\n\n' +
+                'If this wasn\'t you, please change your password immediately.',
+                { parse_mode: 'Markdown' }
+              );
+            } catch (e) {
+              // Previous session may have blocked the bot
+            }
           }
+          
+          // Link telegram account and save phone
+          const updates = { telegramId };
+          if (session.phone) {
+            updates.phone = session.phone;
+          }
+          db.updateUser(session.username, updates);
+          
+          // Process IP security check (Task 5)
+          const securityResult = await processLoginSecurityCheck(ctx, user, db, auth);
+          
+          auth.clearLoginSession(telegramId);
+          
+          // Release lock
+          releaseLoginLock(session.username);
+          
+          // Refresh user data
+          const updatedUser = db.findUserByUsername(session.username);
+        
+          return ctx.reply(
+            `✅ *Welcome, ${session.username}!*\n\n` +
+            `💰 Your balance: *$${updatedUser.balance.toFixed(2)}*\n\n` +
+            `Use the menu below to navigate.`,
+            { parse_mode: 'Markdown', ...mainMenu() }
+          );
+        } else {
+          auth.clearLoginSession(telegramId);
+          releaseLoginLock(session.username);
+          return ctx.reply('❌ Invalid password. Please try again with /login');
         }
-        
-        // Link telegram account and save phone
-        const updates = { telegramId };
-        if (session.phone) {
-          updates.phone = session.phone;
-        }
-        db.updateUser(session.username, updates);
-        
-        // Process IP security check (Task 5)
-        const securityResult = await processLoginSecurityCheck(ctx, user, db, auth);
-        
-        auth.clearLoginSession(telegramId);
-        
-        // Refresh user data
-        const updatedUser = db.findUserByUsername(session.username);
-        
-        return ctx.reply(
-          `✅ *Welcome, ${session.username}!*\n\n` +
-          `💰 Your balance: *$${updatedUser.balance.toFixed(2)}*\n\n` +
-          `Use the menu below to navigate.`,
-          { parse_mode: 'Markdown', ...mainMenu() }
-        );
-      } else {
-        auth.clearLoginSession(telegramId);
-        return ctx.reply('❌ Invalid password. Please try again with /login');
+      } catch (error) {
+        releaseLoginLock(session.username);
+        console.error('Login error:', error);
+        return ctx.reply('❌ An error occurred during login. Please try again.');
       }
     }
     

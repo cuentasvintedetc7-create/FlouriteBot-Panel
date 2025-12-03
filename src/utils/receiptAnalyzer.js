@@ -204,8 +204,10 @@ function getClassificationMessage(classification) {
 function addToPendingQueue(entry) {
   const data = readPendingTopups();
   
+  // Use crypto for secure random ID generation
+  const randomPart = crypto.randomBytes(4).toString('hex');
   const pendingEntry = {
-    id: `PR-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+    id: `PR-${Date.now()}-${randomPart}`,
     ...entry,
     status: 'pending',
     createdAt: new Date().toISOString()

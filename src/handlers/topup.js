@@ -11,6 +11,9 @@ const { handleReceiptSpamCheck, logSpamEvent } = require('../utils/receiptSpamCo
 const { alertSuspiciousReceipt, alertFraudReceipt } = require('../utils/adminAlerts');
 const { logTopupSubmitted, logSuspiciousReceipt, logFraudReceipt, logSpamAttempt } = require('../utils/userActivityLogger');
 
+// Fetch function - use global fetch (Node 18+) or fallback
+const fetchFunc = typeof fetch === 'function' ? fetch : null;
+
 // Support WhatsApp URL from config
 const SUPPORT_WHATSAPP = config.supportWhatsApp || 'https://wa.me/447832618273';
 
@@ -212,36 +215,41 @@ function setupTopupHandler(bot) {
     // Download photo for analysis
     let analysisResult = null;
     try {
-      const fileLink = await ctx.telegram.getFileLink(photo.file_id);
-      const response = await fetch(fileLink.href);
-      const buffer = Buffer.from(await response.arrayBuffer());
+      // Skip analysis if fetch is not available (Node < 18)
+      if (!fetchFunc) {
+        console.warn('Receipt analysis skipped: fetch not available. Requires Node.js 18+');
+      } else {
+        const fileLink = await ctx.telegram.getFileLink(photo.file_id);
+        const response = await fetchFunc(fileLink.href);
+        const buffer = Buffer.from(await response.arrayBuffer());
       
-      // Analyze receipt (OCR, hash check, classification)
-      analysisResult = await analyzeReceipt(buffer, telegramId, topup.id);
-      
-      // Add to pending review queue with analysis data
-      addToPendingQueue({
-        userId: telegramId,
-        username: user.username,
-        topupId: topup.id,
-        hash: analysisResult.analysis.hash,
-        flags: analysisResult.flags,
-        classification: analysisResult.classification,
-        ocrText: analysisResult.analysis.ocrText,
-        foundKeywords: analysisResult.analysis.foundKeywords,
-        method: method.title,
-        fileId: photo.file_id
-      });
-      
-      // Log activity
-      logTopupSubmitted(telegramId, user.username, method.title, topup.id);
-      
-      // Log suspicious/fraud receipts
-      if (analysisResult.classification === CLASSIFICATION.SUSPICIOUS) {
-        logSuspiciousReceipt(telegramId, user.username, topup.id, analysisResult.analysis.foundKeywords);
-      } else if (analysisResult.classification === CLASSIFICATION.FRAUD) {
-        logFraudReceipt(telegramId, user.username, topup.id, 
-          analysisResult.analysis.isDuplicate ? 'duplicate_hash' : 'multiple_signals');
+        // Analyze receipt (OCR, hash check, classification)
+        analysisResult = await analyzeReceipt(buffer, telegramId, topup.id);
+        
+        // Add to pending review queue with analysis data
+        addToPendingQueue({
+          userId: telegramId,
+          username: user.username,
+          topupId: topup.id,
+          hash: analysisResult.analysis.hash,
+          flags: analysisResult.flags,
+          classification: analysisResult.classification,
+          ocrText: analysisResult.analysis.ocrText,
+          foundKeywords: analysisResult.analysis.foundKeywords,
+          method: method.title,
+          fileId: photo.file_id
+        });
+        
+        // Log activity
+        logTopupSubmitted(telegramId, user.username, method.title, topup.id);
+        
+        // Log suspicious/fraud receipts
+        if (analysisResult.classification === CLASSIFICATION.SUSPICIOUS) {
+          logSuspiciousReceipt(telegramId, user.username, topup.id, analysisResult.analysis.foundKeywords);
+        } else if (analysisResult.classification === CLASSIFICATION.FRAUD) {
+          logFraudReceipt(telegramId, user.username, topup.id, 
+            analysisResult.analysis.isDuplicate ? 'duplicate_hash' : 'multiple_signals');
+        }
       }
     } catch (error) {
       console.error('Receipt analysis error:', error);
@@ -363,10 +371,10 @@ function setupTopupHandler(bot) {
     let analysisResult = null;
     const isImage = document.mime_type && document.mime_type.startsWith('image/');
     
-    if (isImage) {
+    if (isImage && fetchFunc) {
       try {
         const fileLink = await ctx.telegram.getFileLink(document.file_id);
-        const response = await fetch(fileLink.href);
+        const response = await fetchFunc(fileLink.href);
         const buffer = Buffer.from(await response.arrayBuffer());
         
         // Analyze receipt (OCR, hash check, classification)
@@ -401,7 +409,7 @@ function setupTopupHandler(bot) {
         // Continue without analysis - still process the topup
       }
     } else {
-      // Non-image document - just log the topup submission
+      // Non-image document or fetch not available - just log the topup submission
       logTopupSubmitted(telegramId, user.username, method.title, topup.id);
     }
     

@@ -12,6 +12,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 // Data path
 const activityPath = path.join(__dirname, '../../data/logs/user_activity.json');
@@ -68,8 +69,10 @@ function saveActivityLog(data) {
 function logActivity(userId, username, activityType, details = {}) {
   const data = readActivityLog();
   
+  // Use crypto for secure random ID generation
+  const randomPart = crypto.randomBytes(4).toString('hex');
   const entry = {
-    id: `ACT-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+    id: `ACT-${Date.now()}-${randomPart}`,
     userId,
     username,
     type: activityType,

@@ -5,6 +5,12 @@ const config = require('../../config.json');
 const { formatBalance } = require('../utils/format');
 const { mainMenuInline } = require('../keyboards/mainMenu');
 
+// New modules for receipt analysis
+const { analyzeReceipt, addToPendingQueue, CLASSIFICATION } = require('../utils/receiptAnalyzer');
+const { handleReceiptSpamCheck, logSpamEvent } = require('../utils/receiptSpamControl');
+const { alertSuspiciousReceipt, alertFraudReceipt } = require('../utils/adminAlerts');
+const { logTopupSubmitted, logSuspiciousReceipt, logFraudReceipt, logSpamAttempt } = require('../utils/userActivityLogger');
+
 // Support WhatsApp URL from config
 const SUPPORT_WHATSAPP = config.supportWhatsApp || 'https://wa.me/447832618273';
 
@@ -182,11 +188,19 @@ function setupTopupHandler(bot) {
     }
     
     const user = auth.getLoggedInUser(telegramId);
+    
+    // Anti-spam check for receipts
+    const spamCheck = handleReceiptSpamCheck(telegramId, user.username);
+    if (!spamCheck.allowed) {
+      logSpamAttempt(telegramId, user.username, 'receipt_cooldown');
+      return ctx.reply(spamCheck.message);
+    }
+    
     const photo = ctx.message.photo[ctx.message.photo.length - 1]; // Get highest resolution
     const methodKey = session.topupMethod;
     const method = PAYMENT_METHODS[methodKey];
     
-    // Create topup request
+    // Create topup request (original logic preserved)
     const topup = db.addTopupRequest(
       user.username,
       telegramId,
@@ -195,34 +209,90 @@ function setupTopupHandler(bot) {
       photo.file_id
     );
     
+    // Download photo for analysis
+    let analysisResult = null;
+    try {
+      const fileLink = await ctx.telegram.getFileLink(photo.file_id);
+      const response = await fetch(fileLink.href);
+      const buffer = Buffer.from(await response.arrayBuffer());
+      
+      // Analyze receipt (OCR, hash check, classification)
+      analysisResult = await analyzeReceipt(buffer, telegramId, topup.id);
+      
+      // Add to pending review queue with analysis data
+      addToPendingQueue({
+        userId: telegramId,
+        username: user.username,
+        topupId: topup.id,
+        hash: analysisResult.analysis.hash,
+        flags: analysisResult.flags,
+        classification: analysisResult.classification,
+        ocrText: analysisResult.analysis.ocrText,
+        foundKeywords: analysisResult.analysis.foundKeywords,
+        method: method.title,
+        fileId: photo.file_id
+      });
+      
+      // Log activity
+      logTopupSubmitted(telegramId, user.username, method.title, topup.id);
+      
+      // Log suspicious/fraud receipts
+      if (analysisResult.classification === CLASSIFICATION.SUSPICIOUS) {
+        logSuspiciousReceipt(telegramId, user.username, topup.id, analysisResult.analysis.foundKeywords);
+      } else if (analysisResult.classification === CLASSIFICATION.FRAUD) {
+        logFraudReceipt(telegramId, user.username, topup.id, 
+          analysisResult.analysis.isDuplicate ? 'duplicate_hash' : 'multiple_signals');
+      }
+    } catch (error) {
+      console.error('Receipt analysis error:', error);
+      // Continue without analysis - still process the topup
+    }
+    
     // Clear session
     auth.clearLoginSession(telegramId);
     
-    // Notify user
+    // Notify user with appropriate message based on classification
+    const userMessage = analysisResult ? analysisResult.message : 
+      '📥 Comprobante recibido. Enviado a verificación manual.';
+    
     await ctx.reply(
-      `✅ *Payment Proof Submitted!*\n\n` +
+      `${userMessage}\n\n` +
       `📋 Request ID: #${topup.id}\n` +
       `💳 Method: ${method.title}\n` +
       `📅 Date: ${new Date().toLocaleString()}\n\n` +
-      `⏳ Your request is pending admin approval.\n` +
-      `You will be notified once it's processed.`,
+      `⏳ You will be notified once it's processed.`,
       { parse_mode: 'Markdown', ...mainMenuInline() }
     );
     
     // Notify admin
     const adminId = auth.getAdminId();
     
+    // Build admin caption with analysis flags if available
+    let adminCaption = `💸 *NEW TOP-UP REQUEST*\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n` +
+      `📋 Request ID: #${topup.id}\n` +
+      `👤 Username: ${user.username}\n` +
+      `📱 Phone: ${user.phone || 'Not provided'}\n` +
+      `🆔 Telegram ID: ${telegramId}\n` +
+      `💳 Method: ${method.title}\n` +
+      `📅 Date: ${new Date().toLocaleString()}\n`;
+    
+    // Add analysis flags if available
+    if (analysisResult) {
+      adminCaption += `━━━━━━━━━━━━━━━━━━━━━\n`;
+      adminCaption += `🔍 *Analysis:* ${analysisResult.classification}\n`;
+      if (analysisResult.flags.duplicate) {
+        adminCaption += `⚠️ DUPLICATE HASH DETECTED\n`;
+      }
+      if (analysisResult.flags.suspicious && analysisResult.analysis.foundKeywords.length > 0) {
+        adminCaption += `⚠️ Keywords: ${analysisResult.analysis.foundKeywords.join(', ')}\n`;
+      }
+    }
+    adminCaption += `━━━━━━━━━━━━━━━━━━━━━`;
+    
     try {
       await ctx.telegram.sendPhoto(adminId, photo.file_id, {
-        caption: `💸 *NEW TOP-UP REQUEST*\n\n` +
-          `━━━━━━━━━━━━━━━━━━━━━\n` +
-          `📋 Request ID: #${topup.id}\n` +
-          `👤 Username: ${user.username}\n` +
-          `📱 Phone: ${user.phone || 'Not provided'}\n` +
-          `🆔 Telegram ID: ${telegramId}\n` +
-          `💳 Method: ${method.title}\n` +
-          `📅 Date: ${new Date().toLocaleString()}\n` +
-          `━━━━━━━━━━━━━━━━━━━━━`,
+        caption: adminCaption,
         parse_mode: 'Markdown',
         reply_markup: {
           inline_keyboard: [
@@ -233,6 +303,22 @@ function setupTopupHandler(bot) {
           ]
         }
       });
+      
+      // Send additional alert for suspicious/fraud receipts
+      if (analysisResult) {
+        if (analysisResult.classification === CLASSIFICATION.SUSPICIOUS) {
+          await alertSuspiciousReceipt(ctx.telegram, user.username, telegramId, {
+            topupId: topup.id,
+            keywords: analysisResult.analysis.foundKeywords
+          });
+        } else if (analysisResult.classification === CLASSIFICATION.FRAUD) {
+          await alertFraudReceipt(ctx.telegram, user.username, telegramId, {
+            topupId: topup.id,
+            keywords: analysisResult.analysis.foundKeywords,
+            isDuplicate: analysisResult.flags.duplicate
+          });
+        }
+      }
     } catch (error) {
       console.error('Error notifying admin:', error);
     }
@@ -252,11 +338,19 @@ function setupTopupHandler(bot) {
     }
     
     const user = auth.getLoggedInUser(telegramId);
+    
+    // Anti-spam check for receipts
+    const spamCheck = handleReceiptSpamCheck(telegramId, user.username);
+    if (!spamCheck.allowed) {
+      logSpamAttempt(telegramId, user.username, 'receipt_cooldown');
+      return ctx.reply(spamCheck.message);
+    }
+    
     const document = ctx.message.document;
     const methodKey = session.topupMethod;
     const method = PAYMENT_METHODS[methodKey];
     
-    // Create topup request
+    // Create topup request (original logic preserved)
     const topup = db.addTopupRequest(
       user.username,
       telegramId,
@@ -265,34 +359,97 @@ function setupTopupHandler(bot) {
       document.file_id
     );
     
+    // Download document for analysis (if it's an image)
+    let analysisResult = null;
+    const isImage = document.mime_type && document.mime_type.startsWith('image/');
+    
+    if (isImage) {
+      try {
+        const fileLink = await ctx.telegram.getFileLink(document.file_id);
+        const response = await fetch(fileLink.href);
+        const buffer = Buffer.from(await response.arrayBuffer());
+        
+        // Analyze receipt (OCR, hash check, classification)
+        analysisResult = await analyzeReceipt(buffer, telegramId, topup.id);
+        
+        // Add to pending review queue with analysis data
+        addToPendingQueue({
+          userId: telegramId,
+          username: user.username,
+          topupId: topup.id,
+          hash: analysisResult.analysis.hash,
+          flags: analysisResult.flags,
+          classification: analysisResult.classification,
+          ocrText: analysisResult.analysis.ocrText,
+          foundKeywords: analysisResult.analysis.foundKeywords,
+          method: method.title,
+          fileId: document.file_id
+        });
+        
+        // Log activity
+        logTopupSubmitted(telegramId, user.username, method.title, topup.id);
+        
+        // Log suspicious/fraud receipts
+        if (analysisResult.classification === CLASSIFICATION.SUSPICIOUS) {
+          logSuspiciousReceipt(telegramId, user.username, topup.id, analysisResult.analysis.foundKeywords);
+        } else if (analysisResult.classification === CLASSIFICATION.FRAUD) {
+          logFraudReceipt(telegramId, user.username, topup.id, 
+            analysisResult.analysis.isDuplicate ? 'duplicate_hash' : 'multiple_signals');
+        }
+      } catch (error) {
+        console.error('Receipt analysis error:', error);
+        // Continue without analysis - still process the topup
+      }
+    } else {
+      // Non-image document - just log the topup submission
+      logTopupSubmitted(telegramId, user.username, method.title, topup.id);
+    }
+    
     // Clear session
     auth.clearLoginSession(telegramId);
     
-    // Notify user
+    // Notify user with appropriate message based on classification
+    const userMessage = analysisResult ? analysisResult.message : 
+      '📥 Comprobante recibido. Enviado a verificación manual.';
+    
     await ctx.reply(
-      `✅ *Payment Proof Submitted!*\n\n` +
+      `${userMessage}\n\n` +
       `📋 Request ID: #${topup.id}\n` +
       `💳 Method: ${method.title}\n` +
       `📅 Date: ${new Date().toLocaleString()}\n\n` +
-      `⏳ Your request is pending admin approval.\n` +
-      `You will be notified once it's processed.`,
+      `⏳ You will be notified once it's processed.`,
       { parse_mode: 'Markdown', ...mainMenuInline() }
     );
     
     // Notify admin
     const adminId = auth.getAdminId();
     
+    // Build admin caption with analysis flags if available
+    let adminCaption = `💸 *NEW TOP-UP REQUEST*\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n` +
+      `📋 Request ID: #${topup.id}\n` +
+      `👤 Username: ${user.username}\n` +
+      `📱 Phone: ${user.phone || 'Not provided'}\n` +
+      `🆔 Telegram ID: ${telegramId}\n` +
+      `💳 Method: ${method.title}\n` +
+      `📅 Date: ${new Date().toLocaleString()}\n`;
+    
+    // Add analysis flags if available
+    if (analysisResult) {
+      adminCaption += `━━━━━━━━━━━━━━━━━━━━━\n`;
+      adminCaption += `🔍 *Analysis:* ${analysisResult.classification}\n`;
+      if (analysisResult.flags.duplicate) {
+        adminCaption += `⚠️ DUPLICATE HASH DETECTED\n`;
+      }
+      if (analysisResult.flags.suspicious && analysisResult.analysis.foundKeywords.length > 0) {
+        adminCaption += `⚠️ Keywords: ${analysisResult.analysis.foundKeywords.join(', ')}\n`;
+      }
+    }
+    adminCaption += `━━━━━━━━━━━━━━━━━━━━━`;
+    
     try {
       await ctx.telegram.sendDocument(adminId, document.file_id, {
-        caption: `💸 *NEW TOP-UP REQUEST*\n\n` +
-          `━━━━━━━━━━━━━━━━━━━━━\n` +
-          `📋 Request ID: #${topup.id}\n` +
-          `👤 Username: ${user.username}\n` +
-          `📱 Phone: ${user.phone || 'Not provided'}\n` +
-          `🆔 Telegram ID: ${telegramId}\n` +
-          `💳 Method: ${method.title}\n` +
-          `📅 Date: ${new Date().toLocaleString()}\n` +
-          `━━━━━━━━━━━━━━━━━━━━━`,
+        caption: adminCaption,
         parse_mode: 'Markdown',
         reply_markup: {
           inline_keyboard: [
@@ -303,6 +460,22 @@ function setupTopupHandler(bot) {
           ]
         }
       });
+      
+      // Send additional alert for suspicious/fraud receipts
+      if (analysisResult) {
+        if (analysisResult.classification === CLASSIFICATION.SUSPICIOUS) {
+          await alertSuspiciousReceipt(ctx.telegram, user.username, telegramId, {
+            topupId: topup.id,
+            keywords: analysisResult.analysis.foundKeywords
+          });
+        } else if (analysisResult.classification === CLASSIFICATION.FRAUD) {
+          await alertFraudReceipt(ctx.telegram, user.username, telegramId, {
+            topupId: topup.id,
+            keywords: analysisResult.analysis.foundKeywords,
+            isDuplicate: analysisResult.flags.duplicate
+          });
+        }
+      }
     } catch (error) {
       console.error('Error notifying admin:', error);
     }

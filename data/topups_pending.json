@@ -1,0 +1,16 @@
+{
+  "pendings": [
+    {
+      "id": "PR-1764756365440-05273683",
+      "userId": 12345,
+      "username": "testuser",
+      "topupId": 1,
+      "hash": "testhash",
+      "flags": {
+        "normal": true
+      },
+      "status": "pending",
+      "createdAt": "2025-12-03T10:06:05.440Z"
+    }
+  ]
+}

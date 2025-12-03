@@ -27,9 +27,11 @@ function adminPanelMenu() {
     [Markup.button.callback('4️⃣ Remove Balance', 'admin_remove_balance')],
     [Markup.button.callback('5️⃣ Purchases', 'admin_purchases')],
     [Markup.button.callback('6️⃣ Topups', 'admin_topups')],
+    [Markup.button.callback('📤 Pending Topups', 'admin_pending_topups')],
     [Markup.button.callback('7️⃣ Promo Codes', 'admin_promo')],
     [Markup.button.callback('8️⃣ Broadcast', 'admin_broadcast')],
     [Markup.button.callback('9️⃣ Stats', 'admin_stats')],
+    [Markup.button.callback('📑 User Activity Log', 'admin_user_activity')],
     [Markup.button.callback('🔧 Settings', 'admin_settings')],
     [Markup.button.callback('👥 Manage Roles', 'admin_roles')]
   ]);

@@ -6,6 +6,7 @@ const express = require('express');
 const router = express.Router();
 const { authMiddleware, adminOnly } = require('../middleware/auth');
 const db = require('../../src/utils/db');
+const { getPendingReviews, updatePendingStatus, getPendingById } = require('../../src/utils/receiptAnalyzer');
 
 // All routes require authentication
 router.use(authMiddleware);
@@ -210,6 +211,164 @@ router.get('/stats', (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch topup statistics'
+    });
+  }
+});
+
+/**
+ * GET /api/topups/pending-reviews
+ * Get pending topups with receipt analysis data
+ */
+router.get('/pending-reviews', adminOnly, (req, res) => {
+  try {
+    const pendingReviews = getPendingReviews();
+    
+    // Sort by date (oldest first - FIFO)
+    pendingReviews.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    
+    res.json({
+      success: true,
+      reviews: pendingReviews,
+      count: pendingReviews.length
+    });
+    
+  } catch (error) {
+    console.error('Error fetching pending reviews:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch pending reviews'
+    });
+  }
+});
+
+/**
+ * GET /api/topups/pending-reviews/:id
+ * Get a specific pending review with analysis
+ */
+router.get('/pending-reviews/:id', adminOnly, (req, res) => {
+  try {
+    const review = getPendingById(req.params.id);
+    
+    if (!review) {
+      return res.status(404).json({
+        success: false,
+        message: 'Pending review not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      review
+    });
+    
+  } catch (error) {
+    console.error('Error fetching pending review:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch pending review'
+    });
+  }
+});
+
+/**
+ * POST /api/topups/pending-reviews/:id/approve
+ * Approve a pending review and process topup
+ */
+router.post('/pending-reviews/:id/approve', adminOnly, (req, res) => {
+  try {
+    const { amount } = req.body;
+    const reviewId = req.params.id;
+    
+    if (!amount || isNaN(amount) || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid amount is required'
+      });
+    }
+    
+    const review = getPendingById(reviewId);
+    
+    if (!review) {
+      return res.status(404).json({
+        success: false,
+        message: 'Pending review not found'
+      });
+    }
+    
+    if (review.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: `Review already ${review.status}`
+      });
+    }
+    
+    // Update pending review status
+    updatePendingStatus(reviewId, 'approved', { amount: parseFloat(amount) });
+    
+    // Update the original topup request if it exists
+    if (review.topupId) {
+      db.updateTopupStatus(review.topupId, 'APPROVED', parseFloat(amount));
+      db.addBalance(review.username, parseFloat(amount));
+      db.addTopup(review.username, parseFloat(amount), review.method);
+    }
+    
+    res.json({
+      success: true,
+      message: `Review approved. $${amount} added to ${review.username}`
+    });
+    
+  } catch (error) {
+    console.error('Error approving review:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to approve review'
+    });
+  }
+});
+
+/**
+ * POST /api/topups/pending-reviews/:id/reject
+ * Reject a pending review
+ */
+router.post('/pending-reviews/:id/reject', adminOnly, (req, res) => {
+  try {
+    const reviewId = req.params.id;
+    const { reason } = req.body;
+    
+    const review = getPendingById(reviewId);
+    
+    if (!review) {
+      return res.status(404).json({
+        success: false,
+        message: 'Pending review not found'
+      });
+    }
+    
+    if (review.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: `Review already ${review.status}`
+      });
+    }
+    
+    // Update pending review status
+    updatePendingStatus(reviewId, 'rejected', { reason: reason || 'Rejected by admin' });
+    
+    // Update the original topup request if it exists
+    if (review.topupId) {
+      db.updateTopupStatus(review.topupId, 'REJECTED');
+    }
+    
+    res.json({
+      success: true,
+      message: `Review rejected`
+    });
+    
+  } catch (error) {
+    console.error('Error rejecting review:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to reject review'
     });
   }
 });

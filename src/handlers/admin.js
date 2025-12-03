@@ -6,6 +6,11 @@ const { formatBalance, formatPrice, formatStockSummary, formatDate, getProductNa
 const { generateKeys } = require('../utils/generateKey');
 const { adminPanelMenu, stockManagementMenu } = require('../keyboards/mainMenu');
 
+// New modules for admin features
+const { getPendingReviews, updatePendingStatus } = require('../utils/receiptAnalyzer');
+const { getUserActivities, getUserActivitySummary, getRecentActivities } = require('../utils/userActivityLogger');
+const { getSpamLogs } = require('../utils/receiptSpamControl');
+
 function setupAdminHandler(bot) {
   // Admin command - show panel with inline buttons
   bot.command('admin', (ctx) => {
@@ -1150,6 +1155,160 @@ function setupAdminHandler(bot) {
     });
     
     message += `\n_✅ = Linked to Telegram, ❌ = Not linked_`;
+    
+    return ctx.reply(message, { parse_mode: 'Markdown' });
+  });
+  
+  // Pending Topups with Analysis - Admin only
+  bot.action('admin_pending_topups', (ctx) => {
+    if (!auth.isAdmin(ctx.from.id)) {
+      return ctx.answerCbQuery('❌ Not authorized');
+    }
+    
+    const pending = getPendingReviews();
+    
+    let message = `📤 *PENDING TOPUPS REVIEW*\n\n━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    
+    if (pending.length === 0) {
+      message += `✅ No pending topups to review.`;
+    } else {
+      pending.slice(0, 10).forEach((p, i) => {
+        const flags = [];
+        if (p.flags?.duplicate) flags.push('🔴 DUP');
+        if (p.flags?.suspicious) flags.push('🟡 SUS');
+        if (p.flags?.normal) flags.push('🟢 OK');
+        
+        message += `*#${p.topupId || p.id}* - ${p.username}\n`;
+        message += `💳 ${p.method || 'Unknown'}\n`;
+        message += `🏷️ ${flags.join(' ') || 'N/A'} | ${p.classification || 'N/A'}\n`;
+        message += `📅 ${formatDate(p.createdAt)}\n\n`;
+      });
+      
+      if (pending.length > 10) {
+        message += `\n_...and ${pending.length - 10} more_`;
+      }
+    }
+    
+    message += `\n\n💡 Use the standard Topups section to approve/reject.`;
+    
+    return ctx.editMessageText(message, {
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [Markup.button.callback('🔄 Refresh', 'admin_pending_topups')],
+          [Markup.button.callback('⬅️ Back to Admin', 'back_admin')]
+        ]
+      }
+    });
+  });
+  
+  // User Activity Log - Admin only
+  bot.action('admin_user_activity', (ctx) => {
+    if (!auth.isAdmin(ctx.from.id)) {
+      return ctx.answerCbQuery('❌ Not authorized');
+    }
+    
+    return ctx.editMessageText(
+      `📑 *USER ACTIVITY LOG*\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `Use commands to view user activity:\n\n` +
+      `/useractivity USERNAME - View activity for a user\n` +
+      `/recentactivity - View recent activity (all users)\n` +
+      `/spamlogs - View recent spam attempts\n\n` +
+      `_Activity includes: purchases, resets, topups,\nspam attempts, and suspicious receipts._`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [Markup.button.callback('⬅️ Back to Admin', 'back_admin')]
+          ]
+        }
+      }
+    );
+  });
+  
+  // User activity command
+  bot.command('useractivity', (ctx) => {
+    if (!auth.isAdmin(ctx.from.id)) {
+      return ctx.reply('❌ You are not authorized to use admin commands.');
+    }
+    
+    const args = ctx.message.text.split(' ').slice(1);
+    
+    if (args.length < 1) {
+      return ctx.reply('❌ Usage: /useractivity USERNAME');
+    }
+    
+    const username = args[0];
+    const summary = getUserActivitySummary(null, username);
+    const activities = getUserActivities(null, username, 10);
+    
+    let message = `📑 *Activity for ${username}*\n\n`;
+    message += `━━━━━━━━━━━━━━━━━━━━━\n`;
+    message += `📊 *Summary:*\n`;
+    message += `   🛒 Purchases: ${summary.purchases}\n`;
+    message += `   🔄 Resets: ${summary.resetSuccesses}/${summary.resetAttempts}\n`;
+    message += `   💰 Topups: ${summary.topupsApproved}/${summary.topupsSubmitted}\n`;
+    message += `   ⚠️ Spam Attempts: ${summary.spamAttempts}\n`;
+    message += `   🔍 Suspicious: ${summary.suspiciousReceipts}\n`;
+    message += `   🚫 Fraud Flags: ${summary.fraudReceipts}\n\n`;
+    
+    if (activities.length > 0) {
+      message += `📋 *Recent Activity:*\n`;
+      activities.forEach((a, i) => {
+        const date = new Date(a.timestamp).toLocaleDateString();
+        message += `${i + 1}. ${a.type} - ${date}\n`;
+      });
+    }
+    
+    return ctx.reply(message, { parse_mode: 'Markdown' });
+  });
+  
+  // Recent activity command
+  bot.command('recentactivity', (ctx) => {
+    if (!auth.isAdmin(ctx.from.id)) {
+      return ctx.reply('❌ You are not authorized to use admin commands.');
+    }
+    
+    const activities = getRecentActivities(20);
+    
+    let message = `📋 *Recent Activity (All Users)*\n\n`;
+    message += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    
+    if (activities.length === 0) {
+      message += `No activity recorded yet.`;
+    } else {
+      activities.forEach((a, i) => {
+        const date = new Date(a.timestamp).toLocaleString();
+        message += `${i + 1}. *${a.username}* - ${a.type}\n`;
+        message += `   📅 ${date}\n`;
+      });
+    }
+    
+    return ctx.reply(message, { parse_mode: 'Markdown' });
+  });
+  
+  // Spam logs command
+  bot.command('spamlogs', (ctx) => {
+    if (!auth.isAdmin(ctx.from.id)) {
+      return ctx.reply('❌ You are not authorized to use admin commands.');
+    }
+    
+    const logs = getSpamLogs(20);
+    
+    let message = `🛑 *Recent Spam Attempts*\n\n`;
+    message += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    
+    if (logs.length === 0) {
+      message += `No spam attempts recorded.`;
+    } else {
+      logs.forEach((log, i) => {
+        const date = new Date(log.timestamp).toLocaleString();
+        message += `${i + 1}. *${log.username || log.userId}*\n`;
+        message += `   📅 ${date}\n`;
+        message += `   🏷️ ${log.eventType}\n\n`;
+      });
+    }
     
     return ctx.reply(message, { parse_mode: 'Markdown' });
   });
